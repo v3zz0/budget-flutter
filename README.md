@@ -118,14 +118,14 @@ flutter build apk --split-per-abi --release
 
 | Scenario | Comando | APK da installare |
 | --- | --- | --- |
-| Solo per me (Samsung S25 Ultra) | `--split-per-abi --release` | `app-arm64-v8a-release.apk` |
+| Un solo dispositivo (smartphone moderno) | `--split-per-abi --release` | `app-arm64-v8a-release.apk` |
 | Distribuire a più persone con dispositivi diversi | `--release` (universale) | `app-release.apk` |
 | Pubblicare sul Play Store | `flutter build appbundle --release` | (AAB, lo Store seleziona da solo) |
 
-**Consiglio personale:** il Samsung Galaxy S25 Ultra monta lo Snapdragon 8 Elite,
-architettura `arm64-v8a`. Per uso personale conviene usare `--split-per-abi`
-e installare solo `app-arm64-v8a-release.apk` (~22 MB) invece dell'APK universale (~65 MB).
-Trasferimento più veloce e ~40 MB di spazio risparmiato sul telefono.
+**Consiglio:** la maggior parte degli smartphone moderni (64-bit) usa l'architettura
+`arm64-v8a`. Per un singolo dispositivo conviene `--split-per-abi` e installare solo
+`app-arm64-v8a-release.apk` (~22 MB) invece dell'APK universale (~65 MB): trasferimento
+più veloce e ~40 MB di spazio risparmiato sul telefono.
 
 #### Differenza tecnica tra le due build
 
