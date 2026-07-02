@@ -3,6 +3,28 @@
 App Flutter (Android) per la gestione del budget personale multi-portafoglio.
 Consuma le API del backend Strapi ([budget-api](https://github.com/v3zz0/budget-api)).
 
+## ✨ Funzionalità
+
+- 💼 **Multi-portafoglio** — più portafogli indipendenti (es. Casa, Affitto, Spese Personali), ognuno con il proprio budget mensile.
+- 📊 **Dashboard mensile** — *Budget / Speso / Rimanente* per categoria con barra di avanzamento; navigazione tra i mesi; sforamenti in rosso; categorie espandibili.
+- 🏷️ **Categorie con budget e icone** — budget mensile, icona e ricorrenza per ogni categoria.
+- ➕ **Transazioni rapide** — importo, categoria, data, descrizione e toggle *ricorrente*.
+- 🐷 **Salvadanaio** — risparmi mese per mese (`budget − speso`) con totale storico.
+- 🤖 **Analisi estratto conto (AI)** — carichi il PDF della banca e un LLM locale (Ollama) trova sforamenti e transazioni mancanti.
+- 🔔 **Notifiche locali** — promemoria addebiti ricorrenti a orario configurabile.
+- ⚙️ **Impostazioni** — gestione portafogli e categorie (crea/modifica/elimina multipla).
+- 📤 **Export CSV** · 🔐 **Login JWT** (token in secure storage) · 🌙 **UI dark banking-style**.
+
+## 📸 Screenshot
+
+| Dashboard | Salvadanaio | Nuova transazione |
+|---|---|---|
+| ![Dashboard](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/dashboard.png) | ![Salvadanaio](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/salvadanaio.png) | ![Nuova transazione](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/nuova-transazione.png) |
+
+| Analisi estratto conto (AI) | Impostazioni |
+|---|---|
+| ![Analisi](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/analisi.png) | ![Impostazioni](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/impostazioni.png) |
+
 ## ✅ Prerequisiti
 
 - **Flutter SDK** `>= 3.11` (`flutter doctor` per verificare l'ambiente)
