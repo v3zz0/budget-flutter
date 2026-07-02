@@ -19,11 +19,11 @@ Consuma le API del backend Strapi ([budget-api](https://github.com/v3zz0/budget-
 
 | Dashboard | Salvadanaio | Nuova transazione |
 |---|---|---|
-| ![Dashboard](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/dashboard.png) | ![Salvadanaio](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/salvadanaio.png) | ![Nuova transazione](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/nuova-transazione.png) |
+| ![Dashboard](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/dashboard.jpg) | ![Salvadanaio](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/salvadanaio.jpg) | ![Nuova transazione](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/nuova-transazione.jpg) |
 
 | Analisi estratto conto (AI) | Impostazioni |
 |---|---|
-| ![Analisi](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/analisi.png) | ![Impostazioni](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/impostazioni.png) |
+| ![Analisi](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/analisi.jpg) | ![Impostazioni](https://raw.githubusercontent.com/v3zz0/budget-api/main/screenshots/impostazioni.jpg) |
 
 ## ✅ Prerequisiti
 
