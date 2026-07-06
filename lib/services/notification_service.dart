@@ -37,21 +37,28 @@ class NotificationService {
   // Pianifica una notifica per quando avviene un addebito ricorrente
   static Future<void> scheduleRicorrente(Transaction transazione, Category? categoria, {TimeOfDay? orario}) async {
     if (_disabilitato) return;
-    if (transazione.ricorrenzaTemporale == null) return;
 
-    final dataBase = transazione.ricorrenzaTemporale!;
+    // RicorrenzaTemporale spesso non è valorizzata (l'app non la invia in create):
+    // usiamo la data della transazione come giorno-del-mese di riferimento.
+    final base = transazione.ricorrenzaTemporale ?? transazione.data;
+    final giorno = base.day;
     final ora = orario ?? const TimeOfDay(hour: 9, minute: 0);
-    final data = DateTime(dataBase.year, dataBase.month, dataBase.day, ora.hour, ora.minute);
-    if (data.isBefore(DateTime.now())) return;
 
-    final scheduledDate = tz.TZDateTime.from(data, tz.local);
+    // Prossima occorrenza NEL FUTURO: stesso giorno del mese, all'orario scelto.
+    final now = tz.TZDateTime.now(tz.local);
+    var prossima = tz.TZDateTime(tz.local, now.year, now.month, giorno, ora.hour, ora.minute);
+    if (!prossima.isAfter(now)) {
+      // già passata questo mese → mese successivo (il costruttore normalizza mese 13→gennaio).
+      prossima = tz.TZDateTime(tz.local, now.year, now.month + 1, giorno, ora.hour, ora.minute);
+    }
+
     final categoriaNome = categoria?.nome ?? 'transazione';
 
     await _plugin.zonedSchedule(
       transazione.documentId.hashCode, // ID univoco
       'Addebito ricorrente',
       'Oggi ${transazione.importo.toStringAsFixed(2)}€ per $categoriaNome',
-      scheduledDate,
+      prossima,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'budget_recurring',
@@ -63,6 +70,9 @@ class NotificationService {
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      // Ripete automaticamente ogni mese, stesso giorno.
+      // ponytail: per mesi senza quel giorno (es. 31 a febbraio) il plugin salta/clampa; ok per ora.
+      matchDateTimeComponents: DateTimeComponents.dayOfMonthAndTime,
     );
   }
 
@@ -72,7 +82,9 @@ class NotificationService {
     await _plugin.cancelAll();
     for (final cat in categorie) {
       for (final t in cat.transazionis) {
-        if (t.transazioneRicorrente && t.ricorrenzaTemporale != null) {
+        // Basta il flag ricorrente: la data di riferimento la ricava
+        // scheduleRicorrente (ricorrenzaTemporale ?? data).
+        if (t.transazioneRicorrente) {
           await scheduleRicorrente(t, cat, orario: orario);
         }
       }

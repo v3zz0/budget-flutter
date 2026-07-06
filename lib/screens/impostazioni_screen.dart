@@ -5,6 +5,7 @@ import '../providers/wallet_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/impostazioni_provider.dart';
 import '../providers/user_settings_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
@@ -111,6 +112,48 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Sicurezza — accesso con impronta (login biometrico)
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) => Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeThumbColor: AppColors.accent,
+                    title: const Text(
+                      'Accesso con impronta',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Accedi con l\'impronta invece di email e password',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    value: auth.biometriaAbilitata,
+                    onChanged: (v) async {
+                      if (!v) {
+                        await auth.disabilitaBiometria();
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Esci e accedi con email e password per attivarlo'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
 
               // Tab wallet
               SingleChildScrollView(

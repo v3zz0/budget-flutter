@@ -1,50 +1,40 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/report_analisi.dart';
 import '../services/analisi_service.dart';
 import '../services/api_client.dart';
 
-// Provider per la schermata di analisi estratto conto
-// Compatibile sia mobile (File) sia web (bytes), perché file_picker su Web
-// non espone `path` ma solo `bytes`.
+// Provider per la schermata di analisi estratto conto.
+// Supporta più documenti (PDF/CSV) analizzati insieme in un unico report.
 class AnalisiProvider extends ChangeNotifier {
   final AnalisiService _service = AnalisiService();
 
-  // Su mobile/desktop usiamo File. Su web usiamo bytes.
-  File? _pdfFile;
-  Uint8List? _pdfBytes;
-  String? _pdfNome;
-
+  final List<AnalisiDoc> _docs = [];
   String? _meseSelezionato; // YYYY-MM
   bool _isLoading = false;
   String? _errore;
   ReportAnalisi? _report;
 
-  File? get pdfFile => _pdfFile;
-  Uint8List? get pdfBytes => _pdfBytes;
-  String? get pdfNome => _pdfNome;
+  List<AnalisiDoc> get docs => List.unmodifiable(_docs);
   String? get meseSelezionato => _meseSelezionato;
   bool get isLoading => _isLoading;
   String? get errore => _errore;
   ReportAnalisi? get report => _report;
 
-  bool get hasPdf => _pdfFile != null || _pdfBytes != null;
-  bool get pronto => hasPdf && _meseSelezionato != null;
+  bool get hasDoc => _docs.isNotEmpty;
+  bool get pronto => hasDoc && _meseSelezionato != null;
 
-  void setPdfFile(File file, String nome) {
-    _pdfFile = file;
-    _pdfBytes = null;
-    _pdfNome = nome;
+  void aggiungiDocs(List<AnalisiDoc> nuovi) {
+    _docs.addAll(nuovi);
     _report = null;
     notifyListeners();
   }
 
-  void setPdfBytes(Uint8List bytes, String nome) {
-    _pdfBytes = bytes;
-    _pdfFile = null;
-    _pdfNome = nome;
-    _report = null;
-    notifyListeners();
+  void rimuoviDoc(int index) {
+    if (index >= 0 && index < _docs.length) {
+      _docs.removeAt(index);
+      _report = null;
+      notifyListeners();
+    }
   }
 
   void setMese(String mese) {
@@ -54,9 +44,7 @@ class AnalisiProvider extends ChangeNotifier {
   }
 
   void reset() {
-    _pdfFile = null;
-    _pdfBytes = null;
-    _pdfNome = null;
+    _docs.clear();
     _meseSelezionato = null;
     _report = null;
     _errore = null;
@@ -64,8 +52,8 @@ class AnalisiProvider extends ChangeNotifier {
   }
 
   Future<void> analizza({required String token, required String walletId}) async {
-    if (!hasPdf || _meseSelezionato == null) {
-      _errore = 'Seleziona PDF e mese prima di analizzare';
+    if (!pronto) {
+      _errore = 'Seleziona almeno un documento e il mese prima di analizzare';
       notifyListeners();
       return;
     }
@@ -78,9 +66,7 @@ class AnalisiProvider extends ChangeNotifier {
     try {
       _report = await _service.analizza(
         token: token,
-        pdfFile: _pdfFile,
-        pdfBytes: _pdfBytes,
-        pdfNome: _pdfNome ?? 'estratto.pdf',
+        docs: _docs,
         walletId: walletId,
         mese: _meseSelezionato!,
       );

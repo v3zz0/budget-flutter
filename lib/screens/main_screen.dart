@@ -176,10 +176,13 @@ class _BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     const navHeight = 64.0;
     const fabProtrusion = 22.0;
+    // Inset di sistema in basso (barra gesti / home indicator). Senza tenerne
+    // conto le etichette finiscono appiccicate al bordo sui telefoni a gesti.
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     return SizedBox(
-      // Lo spazio extra in alto consente al FAB di sporgere senza essere tagliato.
-      height: navHeight + fabProtrusion,
+      // Spazio extra in alto per il FAB sporgente + inset di sistema in basso.
+      height: navHeight + fabProtrusion + bottomInset,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -188,8 +191,10 @@ class _BottomNav extends StatelessWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            height: navHeight,
+            height: navHeight + bottomInset,
             child: Container(
+              // Il padding bottom spinge icone/label sopra la barra di sistema.
+              padding: EdgeInsets.only(bottom: bottomInset),
               decoration: const BoxDecoration(
                 color: AppColors.card,
                 border: Border(

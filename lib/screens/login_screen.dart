@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/biometric_service.dart';
 import '../theme.dart';
 
 // StatefulWidget perché abbiamo i TextEditingController da gestire
@@ -32,13 +33,52 @@ class _LoginScreenState extends State<LoginScreen> {
   // Metodo chiamato al click del bottone — equivalente di un method in Vue
   Future<void> _login(BuildContext context) async {
     final auth = context.read<AuthProvider>();
-    await auth.login(_emailController.text.trim(), _passwordController.text);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    await auth.login(email, password);
 
-    // Se il login è andato a buon fine, naviga alla home
-    // mounted: verifica che il widget sia ancora attivo (buona pratica in Flutter)
-    if (auth.isLoggedIn && context.mounted) {
+    if (!auth.isLoggedIn || !context.mounted) return;
+
+    // Login riuscito: se il device supporta la biometria e non è già attiva,
+    // proponi di abilitare l'accesso con impronta per la prossima volta.
+    if (!auth.biometriaAbilitata && await BiometricService.disponibile()) {
+      if (!context.mounted) return;
+      final vuole = await _chiediAttivaBiometria(context);
+      if (vuole == true) {
+        await auth.abilitaBiometria(email, password);
+      }
+    }
+
+    if (context.mounted) {
       Navigator.pushReplacementNamed(context, '/home');
     }
+  }
+
+  // Dialog: chiede se attivare il login con impronta.
+  Future<bool?> _chiediAttivaBiometria(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Accesso con impronta',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          'Vuoi usare l\'impronta per accedere più velocemente la prossima volta?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No, grazie'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+            child: const Text('Attiva'),
+          ),
+        ],
+      ),
+    );
   }
 
   // build() = <template> in Vue — descrive come appare il widget

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/analisi_provider.dart';
 import '../providers/wallet_provider.dart';
+import '../services/analisi_service.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
 import '../widgets/analisi/report_giudizio_widget.dart';
@@ -37,25 +38,30 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
     });
   }
 
-  Future<void> _selezionaPdf() async {
-    // Su web il picker deve leggere i bytes in memoria — `path` non esiste
+  Future<void> _selezionaDocumenti() async {
+    // Selezione multipla: PDF o CSV, anche da conti diversi.
+    // Su web il picker legge i bytes in memoria — `path` non esiste.
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['pdf', 'csv'],
+      allowMultiple: true,
       withData: kIsWeb,
     );
     if (result == null || result.files.isEmpty) return;
     if (!mounted) return;
 
-    final picked = result.files.single;
-    final provider = context.read<AnalisiProvider>();
-
-    if (kIsWeb) {
-      if (picked.bytes == null) return;
-      provider.setPdfBytes(picked.bytes!, picked.name);
-    } else {
-      if (picked.path == null) return;
-      provider.setPdfFile(File(picked.path!), picked.name);
+    final docs = <AnalisiDoc>[];
+    for (final picked in result.files) {
+      if (kIsWeb) {
+        if (picked.bytes == null) continue;
+        docs.add(AnalisiDoc(bytes: picked.bytes, nome: picked.name));
+      } else {
+        if (picked.path == null) continue;
+        docs.add(AnalisiDoc(file: File(picked.path!), nome: picked.name));
+      }
+    }
+    if (docs.isNotEmpty) {
+      context.read<AnalisiProvider>().aggiungiDocs(docs);
     }
   }
 
@@ -120,19 +126,59 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Carica il PDF della banca, l\'AI confronta con le transazioni registrate',
+                'Carica uno o più estratti (PDF o CSV), anche da conti diversi: '
+                'l\'AI li confronta insieme con le transazioni registrate',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 20),
 
               _SelectorCard(
-                icona: Icons.picture_as_pdf,
-                titolo: 'PDF estratto conto',
-                valore: provider.hasPdf
-                    ? (provider.pdfNome ?? 'File selezionato')
+                icona: Icons.upload_file,
+                titolo: 'Documenti (PDF o CSV)',
+                valore: provider.hasDoc
+                    ? '${provider.docs.length} file selezionati'
                     : 'Nessun file selezionato',
-                onTap: provider.isLoading ? null : _selezionaPdf,
+                onTap: provider.isLoading ? null : _selezionaDocumenti,
               ),
+              // Lista dei documenti scelti, con rimozione singola
+              ...provider.docs.asMap().entries.map((e) {
+                final i = e.key;
+                final d = e.value;
+                return Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.input,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.description,
+                          size: 18, color: AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          d.nome,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppColors.textPrimary, fontSize: 13),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: provider.isLoading
+                            ? null
+                            : () => context
+                                .read<AnalisiProvider>()
+                                .rimuoviDoc(i),
+                        child: const Icon(Icons.close,
+                            size: 18, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               const SizedBox(height: 12),
               _SelectorCard(
                 icona: Icons.calendar_month,
