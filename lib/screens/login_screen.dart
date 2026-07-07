@@ -21,6 +21,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Controlla se la password è visibile — equivalente di ref(false) in Vue
   bool _passwordVisibile = false;
+  bool _biometricTentato = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Se il login biometrico è attivo, propone subito l'impronta.
+    // Copre sia l'avvio a freddo sia il ritorno dopo un logout.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _tentaBiometria(automatico: true));
+  }
+
+  // Prova l'accesso con impronta; se OK rifà il login con le credenziali salvate.
+  Future<void> _tentaBiometria({bool automatico = false}) async {
+    if (automatico && _biometricTentato) return;
+    _biometricTentato = true;
+    final auth = context.read<AuthProvider>();
+    if (!auth.biometriaAbilitata) return;
+    if (!await BiometricService.disponibile()) return;
+    if (!mounted) return;
+    final ok = await BiometricService.autentica(motivo: 'Accedi a BudgetApp');
+    if (!ok) return;
+    final loggato = await auth.loginConBiometria();
+    if (loggato && mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
 
   // dispose() = onUnmounted() in Vue — pulizia memoria quando il widget viene distrutto
   @override
@@ -73,7 +99,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Attiva'),
           ),
         ],
@@ -250,6 +279,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(fontSize: 16),
                                 ),
                         ),
+
+                        // Bottone impronta — solo se il login biometrico è attivo
+                        if (auth.biometriaAbilitata) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed:
+                                auth.isLoading ? null : () => _tentaBiometria(),
+                            icon: const Icon(Icons.fingerprint,
+                                color: AppColors.accent),
+                            label: const Text('Accedi con impronta',
+                                style: TextStyle(color: AppColors.accent)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: AppColors.accent),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },

@@ -15,7 +15,6 @@ import 'screens/main_screen.dart';
 
 import 'services/api_client.dart';
 import 'services/notification_service.dart';
-import 'services/biometric_service.dart';
 import 'theme.dart';
 
 // main() = punto di ingresso dell'app — equivalente di main.js in Vue
@@ -102,29 +101,13 @@ class _StartupScreenState extends State<_StartupScreen> {
 
     if (!mounted) return;
 
-    // JWT valido → entra diretto, senza impronta (come da design).
+    // JWT valido → home diretto. Altrimenti → login (dove scatta l'impronta,
+    // se il login biometrico è attivo).
     if (auth.isLoggedIn) {
       Navigator.pushReplacementNamed(context, '/home');
-      return;
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
     }
-
-    // Nessun JWT: se il login biometrico è attivo e il device ha impronte,
-    // propone l'impronta al posto di digitare le credenziali.
-    if (auth.biometriaAbilitata && await BiometricService.disponibile()) {
-      final ok = await BiometricService.autentica(motivo: 'Accedi a BudgetApp');
-      if (ok) {
-        final loggato = await auth.loginConBiometria();
-        if (!mounted) return;
-        if (loggato) {
-          Navigator.pushReplacementNamed(context, '/home');
-          return;
-        }
-      }
-    }
-
-    if (!mounted) return;
-    // Fallback: form utente+password.
-    Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
