@@ -44,15 +44,20 @@ if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
     exit 1
 fi
 
-# Bump PRIMA della build, così l'APK contiene il numero di versione giusto
+# Bump PRIMA della build, così l'APK contiene il numero di versione giusto.
+# Il commit invece arriva DOPO: se la build fallisce il bump viene annullato
+# e rilanciando lo script riparti dalla stessa versione.
 sed -i "s/^version: .*/version: ${NEW_NAME}+${NEW_BUILD}/" pubspec.yaml
-git commit -qam "$TAG"
-git push -q
+trap 'git checkout -- pubspec.yaml' EXIT
 
 # Build
 echo ""
 echo "==> Build APK release..."
 flutter build apk --release
+
+trap - EXIT
+git commit -qam "$TAG"
+git push -q
 
 # Il nome del file DIVENTA il nome dell'asset, ed è quello che compare
 # nell'URL /releases/latest/download/. Tenerlo fisso = link permanente.
