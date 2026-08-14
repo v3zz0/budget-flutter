@@ -5,12 +5,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/skeleton.dart';
 import '../providers/wallet_provider.dart';
+import '../providers/consigli_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/transazione_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../services/api_client.dart';
 import '../models/category.dart';
 import '../theme.dart';
+import 'consigli_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +37,10 @@ class _HomeScreenState extends State<HomeScreen> {
       wallet.selectedWallet!.documentId,
       orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
     );
+
+    // I consigli sono già pronti sul server (li genera il cron a fine mese):
+    // qui si leggono e basta, non si calcola nulla.
+    if (mounted) await context.read<ConsigliProvider>().carica(token);
   }
 
   // Ricarica solo se il wallet selezionato è cambiato davvero
@@ -121,6 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               children: [
                 Expanded(child: _NavigatoreMese(dashboard: dashboard, nomeMese: _nomeMese)),
+                const _CampanellaConsigli(),
                 IconButton(
                   icon: const Icon(Icons.download_outlined, color: AppColors.textPrimary),
                   tooltip: 'Esporta CSV',
@@ -191,6 +198,58 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Campanella dei consigli sul budget. Il pallino rosso appare solo se c'è
+/// qualcosa di nuovo da leggere; se non ci sono consigli l'icona resta spenta.
+class _CampanellaConsigli extends StatelessWidget {
+  const _CampanellaConsigli();
+
+  @override
+  Widget build(BuildContext context) {
+    final consigli = context.watch<ConsigliProvider>();
+    final nuovi = consigli.nonLetti;
+
+    return IconButton(
+      tooltip: 'Consigli sul budget',
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ConsigliScreen()),
+      ),
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            nuovi > 0 ? Icons.notifications_active : Icons.notifications_none,
+            color: nuovi > 0 ? AppColors.accent : AppColors.textPrimary,
+          ),
+          if (nuovi > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: AppColors.error,
+                  shape: BoxShape.circle,
+                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  '$nuovi',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

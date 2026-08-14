@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firma delle release: mai nel repo
+/android/key.properties
+*.jks
+*.keystore

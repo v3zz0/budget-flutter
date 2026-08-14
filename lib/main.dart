@@ -8,6 +8,7 @@ import 'providers/salvadanaio_provider.dart';
 import 'providers/impostazioni_provider.dart';
 import 'providers/user_settings_provider.dart';
 import 'providers/analisi_provider.dart';
+import 'providers/consigli_provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/login_screen.dart';
@@ -41,6 +42,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ImpostazioniProvider()),
         ChangeNotifierProvider(create: (_) => UserSettingsProvider()),
         ChangeNotifierProvider(create: (_) => AnalisiProvider()),
+        ChangeNotifierProvider(create: (_) => ConsigliProvider()),
       ],
       child: const BudgetApp(),
     ),

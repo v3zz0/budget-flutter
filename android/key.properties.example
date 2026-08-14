@@ -1,0 +1,18 @@
+# Copia questo file in android/key.properties e riempilo con i tuoi valori.
+# key.properties e il file .jks NON vanno mai messi nel repo.
+#
+# 1) Genera il keystore (ti chiede le password in modo interattivo):
+#
+#    keytool -genkey -v -keystore ~/budgetapp-release.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias budgetapp
+#
+# 2) Compila i campi qui sotto con il percorso e le password che hai scelto.
+#
+# ATTENZIONE: fai un backup del file .jks in un posto sicuro.
+# Se lo perdi non potrai piu' pubblicare aggiornamenti dell'app: chi ce l'ha
+# installata dovra' disinstallare e reinstallare, perdendo i dati locali.
+
+storeFile=/home/tuo-utente/budgetapp-release.jks
+storePassword=la-password-del-keystore
+keyAlias=budgetapp
+keyPassword=la-password-della-chiave
