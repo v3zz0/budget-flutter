@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../config.dart';
 import '../providers/auth_provider.dart';
 import '../services/biometric_service.dart';
 import '../theme.dart';
@@ -18,6 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // TextEditingController = v-model in Vue
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  late final TextEditingController _serverController =
+      TextEditingController(text: Config.apiBaseUrl);
 
   // Controlla se la password è visibile — equivalente di ref(false) in Vue
   bool _passwordVisibile = false;
@@ -53,7 +56,23 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _serverController.dispose();
     super.dispose();
+  }
+
+  // Salva l'indirizzo del server sul telefono: vale da subito, anche per il
+  // login che stai per fare.
+  Future<void> _salvaServer() async {
+    await Config.salvaUrl(_serverController.text);
+    if (!mounted) return;
+    setState(() => _serverController.text = Config.apiBaseUrl);
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Server impostato: ${Config.apiBaseUrl}'),
+        backgroundColor: AppColors.accent,
+      ),
+    );
   }
 
   // Metodo chiamato al click del bottone — equivalente di un method in Vue
@@ -302,6 +321,72 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     );
                   },
+                ),
+
+                const SizedBox(height: 8),
+                // Indirizzo del server: chiuso per non intralciare, ma sempre
+                // raggiungibile. Serve a chi installa l'app sul proprio backend.
+                Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    iconColor: AppColors.textSecondary,
+                    collapsedIconColor: AppColors.textSecondary,
+                    title: Text(
+                      'Server: ${Config.apiBaseUrl.replaceFirst(RegExp(r'^https?://'), '')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    children: [
+                      TextField(
+                        controller: _serverController,
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          labelText: 'Indirizzo del server',
+                          labelStyle: const TextStyle(color: AppColors.textSecondary),
+                          hintText: 'apibudget.esempio.com',
+                          hintStyle: const TextStyle(color: AppColors.textSecondary),
+                          prefixIcon: const Icon(Icons.dns_outlined,
+                              color: AppColors.textSecondary, size: 20),
+                          filled: true,
+                          fillColor: AppColors.input,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.border),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _salvaServer,
+                          child: const Text(
+                            'Salva indirizzo',
+                            style: TextStyle(color: AppColors.accent),
+                          ),
+                        ),
+                      ),
+                      const Text(
+                        'Senza "https://" davanti viene aggiunto da solo. '
+                        'Resta salvato sul telefono.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

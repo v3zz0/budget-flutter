@@ -13,6 +13,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 
+import 'config.dart';
 import 'services/api_client.dart';
 import 'services/notification_service.dart';
 import 'theme.dart';
@@ -20,6 +21,9 @@ import 'theme.dart';
 // main() = punto di ingresso dell'app — equivalente di main.js in Vue
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Indirizzo del server scelto dall'utente al login: va letto prima di tutto,
+  // perché ogni chiamata API lo usa.
+  await Config.init();
   // Su web NotificationService è no-op internamente, niente if necessario qui
   await NotificationService.init();
   // Inizializza i dati di localizzazione italiani per intl (formattazione date/valute)
