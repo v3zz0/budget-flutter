@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_gemma/flutter_gemma.dart' show CancelToken;
 import 'package:provider/provider.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/dashboard_provider.dart';
@@ -9,7 +8,6 @@ import '../providers/user_settings_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/ai_settings_service.dart';
 import '../services/api_client.dart';
-import '../services/gemma_locale_service.dart';
 import '../services/notification_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
@@ -954,15 +952,14 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
   bool _salvando = false;
   bool _provando = false;
 
-  // Modello sul telefono
-  bool _modelloScaricato = false;
-  int? _avanzamento; // null = nessun download in corso
-  CancelToken? _annulla;
-
   @override
   void initState() {
     super.initState();
-    _carica();
+    // Dopo il primo frame: requireToken può mostrare uno snackbar e navigare,
+    // cose che in initState non si possono ancora fare.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _carica();
+    });
   }
 
   @override
@@ -975,16 +972,19 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
 
   Future<void> _carica() async {
     final token = requireToken(context);
-    if (token == null) return;
+    // Anche senza token la rotella deve fermarsi, altrimenti la pagina resta
+    // a girare per sempre.
+    if (token == null) {
+      setState(() => _caricando = false);
+      return;
+    }
     try {
       final s = await _service.carica(token);
-      final scaricato = await GemmaLocaleService.installato();
       if (!mounted) return;
       setState(() {
         _s = s;
         _urlCtrl.text = s.url;
         _modelloCtrl.text = s.modello;
-        _modelloScaricato = scaricato;
         _caricando = false;
       });
     } catch (e) {
@@ -1053,40 +1053,6 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
     }
   }
 
-  Future<void> _scaricaModello() async {
-    final annulla = CancelToken();
-    setState(() {
-      _avanzamento = 0;
-      _annulla = annulla;
-    });
-    try {
-      await GemmaLocaleService.scarica(
-        annulla: annulla,
-        onProgress: (p) {
-          if (mounted) setState(() => _avanzamento = p);
-        },
-      );
-      if (!mounted) return;
-      setState(() => _modelloScaricato = true);
-      _avviso('Modello pronto, funziona anche senza rete', errore: false);
-    } catch (e) {
-      if (mounted) {
-        _avviso(
-          CancelToken.isCancel(e) ? 'Download annullato' : 'Download fallito: $e',
-        );
-      }
-    } finally {
-      if (mounted) setState(() { _avanzamento = null; _annulla = null; });
-    }
-  }
-
-  Future<void> _eliminaModello() async {
-    await GemmaLocaleService.elimina();
-    if (!mounted) return;
-    setState(() => _modelloScaricato = false);
-    _avviso('Modello rimosso, spazio liberato', errore: false);
-  }
-
   void _avviso(String messaggio, {bool errore = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1123,8 +1089,6 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
       );
     }
 
-    final telefono = _s.motore == MotoreAi.telefono;
-
     return _Sottopagina(
       titolo: 'Analisi AI',
       child: ListView(
@@ -1152,19 +1116,11 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
             attivo: _s.motore == MotoreAi.openrouter,
             onTap: () => _cambiaMotore(MotoreAi.openrouter),
           ),
-          _SceltaMotore(
-            icona: Icons.smartphone_outlined,
-            titolo: 'Sul telefono',
-            sottotitolo: 'Gemma 4 E2B. Offline, nulla esce dal dispositivo',
-            attivo: telefono,
-            onTap: () => _cambiaMotore(MotoreAi.telefono),
-          ),
           const SizedBox(height: 20),
 
-          if (!telefono) ...[
-            _BloccoImpostazioni(
-              titolo: 'CONNESSIONE',
-              figli: [
+          _BloccoImpostazioni(
+            titolo: 'CONNESSIONE',
+            figli: [
                 _CampoTesto(
                   etichetta: _s.motore == MotoreAi.ollama
                       ? 'Indirizzo (es. http://192.168.1.10:11434)'
@@ -1224,16 +1180,8 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
-              ],
-            ),
-          ] else
-            _BloccoModelloLocale(
-              scaricato: _modelloScaricato,
-              avanzamento: _avanzamento,
-              onScarica: _scaricaModello,
-              onAnnulla: () => _annulla?.cancel('Annullato'),
-              onElimina: _eliminaModello,
-            ),
+            ],
+          ),
 
           const SizedBox(height: 20),
           _BottonePieno(
@@ -1311,88 +1259,6 @@ class _SceltaMotore extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Stato del modello scaricato sul telefono: download, avanzamento, rimozione.
-class _BloccoModelloLocale extends StatelessWidget {
-  final bool scaricato;
-  final int? avanzamento;
-  final VoidCallback onScarica;
-  final VoidCallback onAnnulla;
-  final VoidCallback onElimina;
-
-  const _BloccoModelloLocale({
-    required this.scaricato,
-    required this.avanzamento,
-    required this.onScarica,
-    required this.onAnnulla,
-    required this.onElimina,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final inCorso = avanzamento != null;
-
-    return _BloccoImpostazioni(
-      titolo: 'MODELLO SUL DISPOSITIVO',
-      figli: [
-        const Text(
-          'Gemma 4 E2B occupa 2,4 GB sul telefono e circa 3 GB di memoria '
-          'mentre lavora. Serve un telefono con almeno 8 GB di RAM: sotto, '
-          'Android può chiudere l\'app durante l\'analisi.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-        const SizedBox(height: 14),
-        if (inCorso) ...[
-          LinearProgressIndicator(
-            value: avanzamento! / 100,
-            backgroundColor: AppColors.input,
-            color: AppColors.accent,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Scaricamento $avanzamento% — tienilo sotto Wi-Fi',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: onAnnulla,
-            child: const Text('Annulla', style: TextStyle(color: AppColors.error)),
-          ),
-        ] else if (scaricato) ...[
-          Row(
-            children: [
-              const Icon(Icons.check_circle, color: AppColors.accent, size: 20),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Modello installato e pronto',
-                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                ),
-              ),
-              TextButton(
-                onPressed: onElimina,
-                child: const Text(
-                  'Rimuovi',
-                  style: TextStyle(color: AppColors.error),
-                ),
-              ),
-            ],
-          ),
-        ] else
-          OutlinedButton.icon(
-            onPressed: onScarica,
-            icon: const Icon(Icons.download_outlined, size: 18),
-            label: const Text('Scarica modello (2,4 GB)'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.accent,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-      ],
     );
   }
 }

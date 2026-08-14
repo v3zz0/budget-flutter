@@ -3,12 +3,11 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import 'api_client.dart';
 
-/// I tre motori selezionabili dalle impostazioni.
-enum MotoreAi { ollama, openrouter, telefono }
+/// I motori selezionabili dalle impostazioni.
+enum MotoreAi { ollama, openrouter }
 
 MotoreAi motoreDaStringa(String? s) => switch (s) {
       'openrouter' => MotoreAi.openrouter,
-      'telefono' => MotoreAi.telefono,
       _ => MotoreAi.ollama,
     };
 

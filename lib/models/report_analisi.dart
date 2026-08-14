@@ -50,13 +50,6 @@ class TransazioneMancante {
         descrizione: j['descrizione'] ?? '',
         categoriaSuggerita: j['categoriaSuggerita'],
       );
-
-  TransazioneMancante conCategoria(String? categoria) => TransazioneMancante(
-        data: data,
-        importo: importo,
-        descrizione: descrizione,
-        categoriaSuggerita: categoria ?? categoriaSuggerita,
-      );
 }
 
 class TotaleReport {
@@ -99,10 +92,6 @@ class ReportAnalisi {
   final TotaleReport totale;
   final String giudizio;
 
-  /// true = categorie e giudizio mancano di proposito: il motore AI scelto è
-  /// il modello sul telefono, quindi li genera l'app dopo aver ricevuto i dati.
-  final bool aiSulTelefono;
-
   ReportAnalisi({
     required this.mese,
     required this.walletId,
@@ -112,24 +101,7 @@ class ReportAnalisi {
     required this.mancanti,
     required this.totale,
     required this.giudizio,
-    this.aiSulTelefono = false,
   });
-
-  ReportAnalisi copyWith({
-    List<TransazioneMancante>? mancanti,
-    String? giudizio,
-  }) =>
-      ReportAnalisi(
-        mese: mese,
-        walletId: walletId,
-        validazione: validazione,
-        periodoEstratto: periodoEstratto,
-        sforamenti: sforamenti,
-        mancanti: mancanti ?? this.mancanti,
-        totale: totale,
-        giudizio: giudizio ?? this.giudizio,
-        aiSulTelefono: aiSulTelefono,
-      );
 
   factory ReportAnalisi.fromJson(Map<String, dynamic> j) {
     Map<String, String>? periodo;
@@ -152,7 +124,6 @@ class ReportAnalisi {
           .toList(),
       totale: TotaleReport.fromJson(j['totale'] ?? {}),
       giudizio: j['giudizio'] ?? '',
-      aiSulTelefono: j['aiSulTelefono'] ?? false,
     );
   }
 }
