@@ -7,18 +7,574 @@ import '../providers/impostazioni_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/notification_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
 import '../theme.dart';
 
-class ImpostazioniScreen extends StatefulWidget {
+// Impostazioni in modalità lista: una voce per area, ognuna apre la sua pagina.
+// Prima era un unico scroll con dentro tutto; aggiungendo opzioni diventava
+// illeggibile e "aggiungi categoria" spariva dietro un FAB poco scopribile.
+class ImpostazioniScreen extends StatelessWidget {
   const ImpostazioniScreen({super.key});
 
   @override
-  State<ImpostazioniScreen> createState() => _ImpostazioniScreenState();
+  Widget build(BuildContext context) {
+    final wallet = context.watch<WalletProvider>().selectedWallet;
+    final settings = context.watch<UserSettingsProvider>();
+
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+        children: [
+          const Text(
+            'CONFIGURA',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 2,
+            ),
+          ),
+          const Text(
+            'Impostazioni',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          _VoceImpostazioni(
+            icona: Icons.person_outline,
+            titolo: 'Profilo utente',
+            sottotitolo: settings.username.isEmpty
+                ? 'Nome, email e password'
+                : settings.username,
+            apri: () => const _PaginaProfilo(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.account_balance_wallet_outlined,
+            titolo: 'Portafogli e budget',
+            sottotitolo: wallet == null
+                ? 'Nessun portafoglio'
+                : 'Budget mensile di ${wallet.nome}',
+            apri: () => const _PaginaPortafogli(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.category_outlined,
+            titolo: 'Categorie di spesa',
+            sottotitolo: 'Aggiungi, rinomina o elimina categorie',
+            apri: () => const _PaginaCategorie(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.notifications_outlined,
+            titolo: 'Notifiche',
+            sottotitolo: 'Orario degli avvisi per gli addebiti ricorrenti',
+            apri: () => const _PaginaNotifiche(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.lock_outline,
+            titolo: 'Sicurezza',
+            sottotitolo: 'Accesso con impronta',
+            apri: () => const _PaginaSicurezza(),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
+/// Riga della lista impostazioni: icona, titolo, sottotitolo, chevron.
+class _VoceImpostazioni extends StatelessWidget {
+  final IconData icona;
+  final String titolo;
+  final String sottotitolo;
+  final Widget Function() apri;
+
+  const _VoceImpostazioni({
+    required this.icona,
+    required this.titolo,
+    required this.sottotitolo,
+    required this.apri,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Icon(icona, color: AppColors.accent),
+        title: Text(
+          titolo,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          sottotitolo,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AppColors.textSecondary,
+        ),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => apri()),
+        ),
+      ),
+    );
+  }
+}
+
+/// Scaffold comune delle sottopagine: AppBar con back + sfondo.
+class _Sottopagina extends StatelessWidget {
+  final String titolo;
+  final Widget child;
+  final Widget? fab;
+
+  const _Sottopagina({required this.titolo, required this.child, this.fab});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.card,
+        foregroundColor: AppColors.textPrimary,
+        title: Text(
+          titolo,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ),
+      floatingActionButton: fab,
+      body: child,
+    );
+  }
+}
+
+/// Selettore orizzontale dei wallet, condiviso fra le sottopagine.
+class _TabWallet extends StatelessWidget {
+  final VoidCallback? onCambio;
+  const _TabWallet({this.onCambio});
+
+  @override
+  Widget build(BuildContext context) {
+    final walletProvider = context.watch<WalletProvider>();
+    final selezionato = walletProvider.selectedWallet;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: walletProvider.wallets.map((w) {
+          final isSelected = selezionato?.documentId == w.documentId;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () {
+                walletProvider.setSelectedWallet(w);
+                onCambio?.call();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? AppColors.accent : AppColors.border,
+                  ),
+                ),
+                child: Text(
+                  w.nome,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Profilo utente ─────────────────────────
+
+class _PaginaProfilo extends StatefulWidget {
+  const _PaginaProfilo();
+
+  @override
+  State<_PaginaProfilo> createState() => _PaginaProfiloState();
+}
+
+class _PaginaProfiloState extends State<_PaginaProfilo> {
+  late final TextEditingController _nomeCtrl;
+  late final TextEditingController _emailCtrl;
+  final _attualeCtrl = TextEditingController();
+  final _nuovaCtrl = TextEditingController();
+  bool _salvandoProfilo = false;
+  bool _salvandoPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<UserSettingsProvider>();
+    _nomeCtrl = TextEditingController(text: settings.username);
+    _emailCtrl = TextEditingController(text: settings.email);
+
+    // Se l'utente non è ancora stato caricato, i campi partono vuoti: li
+    // riempiamo appena arriva la risposta di /users/me.
+    if (settings.userId == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final token = requireToken(context);
+        if (token == null) return;
+        await settings.load(token);
+        if (!mounted) return;
+        _nomeCtrl.text = settings.username;
+        _emailCtrl.text = settings.email;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _nomeCtrl.dispose();
+    _emailCtrl.dispose();
+    _attualeCtrl.dispose();
+    _nuovaCtrl.dispose();
+    super.dispose();
+  }
+
+  void _avvisa(String messaggio, {bool ok = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(messaggio),
+        backgroundColor: ok ? AppColors.accent : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _salvaProfilo() async {
+    final nome = _nomeCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+
+    // Validazione lato client: Strapi rifiuta comunque, ma così l'errore è
+    // immediato e in italiano.
+    if (nome.isEmpty) {
+      _avvisa('Il nome utente non può essere vuoto');
+      return;
+    }
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      _avvisa('Indirizzo email non valido');
+      return;
+    }
+
+    final token = requireToken(context);
+    if (token == null) return;
+
+    setState(() => _salvandoProfilo = true);
+    final errore = await context.read<UserSettingsProvider>().updateProfilo(
+      token,
+      nome,
+      email,
+    );
+    if (!mounted) return;
+    setState(() => _salvandoProfilo = false);
+    _avvisa(errore ?? 'Profilo aggiornato', ok: errore == null);
+  }
+
+  Future<void> _cambiaPassword() async {
+    final attuale = _attualeCtrl.text;
+    final nuova = _nuovaCtrl.text;
+
+    if (attuale.isEmpty || nuova.isEmpty) {
+      _avvisa('Compila entrambi i campi password');
+      return;
+    }
+    // Minimo imposto da Strapi users-permissions.
+    if (nuova.length < 6) {
+      _avvisa('La nuova password deve avere almeno 6 caratteri');
+      return;
+    }
+    if (nuova == attuale) {
+      _avvisa('La nuova password è uguale a quella attuale');
+      return;
+    }
+
+    final token = requireToken(context);
+    if (token == null) return;
+
+    setState(() => _salvandoPassword = true);
+    final errore = await context.read<UserSettingsProvider>().cambiaPassword(
+      token,
+      attuale,
+      nuova,
+    );
+    if (!mounted) return;
+    setState(() => _salvandoPassword = false);
+    if (errore == null) {
+      _attualeCtrl.clear();
+      _nuovaCtrl.clear();
+    }
+    _avvisa(errore ?? 'Password aggiornata', ok: errore == null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<UserSettingsProvider>();
+
+    return _Sottopagina(
+      titolo: 'Profilo utente',
+      child: settings.isLoading && settings.userId == null
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                _BloccoImpostazioni(
+                  titolo: 'DATI ACCOUNT',
+                  figli: [
+                    _CampoTesto(
+                      etichetta: 'Nome utente',
+                      controller: _nomeCtrl,
+                      icona: Icons.person_outline,
+                    ),
+                    const SizedBox(height: 12),
+                    _CampoTesto(
+                      etichetta: 'Email',
+                      controller: _emailCtrl,
+                      icona: Icons.mail_outline,
+                      tipo: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    _BottonePieno(
+                      testo: 'Salva dati account',
+                      inCorso: _salvandoProfilo,
+                      onPressed: _salvaProfilo,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _BloccoImpostazioni(
+                  titolo: 'PASSWORD',
+                  figli: [
+                    _CampoTesto(
+                      etichetta: 'Password attuale',
+                      controller: _attualeCtrl,
+                      icona: Icons.lock_outline,
+                      password: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _CampoTesto(
+                      etichetta: 'Nuova password',
+                      controller: _nuovaCtrl,
+                      icona: Icons.lock_reset,
+                      password: true,
+                    ),
+                    const SizedBox(height: 16),
+                    _BottonePieno(
+                      testo: 'Cambia password',
+                      inCorso: _salvandoPassword,
+                      onPressed: _cambiaPassword,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+/// Card con titolo in maiuscolo — il contenitore usato in tutte le sottopagine.
+class _BloccoImpostazioni extends StatelessWidget {
+  final String titolo;
+  final List<Widget> figli;
+
+  const _BloccoImpostazioni({required this.titolo, required this.figli});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            titolo,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...figli,
+        ],
+      ),
+    );
+  }
+}
+
+class _CampoTesto extends StatelessWidget {
+  final String etichetta;
+  final TextEditingController controller;
+  final IconData icona;
+  final bool password;
+  final TextInputType? tipo;
+
+  const _CampoTesto({
+    required this.etichetta,
+    required this.controller,
+    required this.icona,
+    this.password = false,
+    this.tipo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      obscureText: password,
+      keyboardType: tipo,
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: etichetta,
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        prefixIcon: Icon(icona, color: AppColors.textSecondary, size: 20),
+        filled: true,
+        fillColor: AppColors.input,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.accent),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottonePieno extends StatelessWidget {
+  final String testo;
+  final bool inCorso;
+  final VoidCallback onPressed;
+
+  const _BottonePieno({
+    required this.testo,
+    required this.inCorso,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: inCorso ? null : onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: inCorso
+          ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : Text(
+              testo,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+    );
+  }
+}
+
+// ───────────────────────── Portafogli e budget ─────────────────────────
+
+class _PaginaPortafogli extends StatelessWidget {
+  const _PaginaPortafogli();
+
+  @override
+  Widget build(BuildContext context) {
+    final walletProvider = context.watch<WalletProvider>();
+    final selezionato = walletProvider.selectedWallet;
+
+    return _Sottopagina(
+      titolo: 'Portafogli e budget',
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          if (walletProvider.wallets.isNotEmpty) ...[
+            const _TabWallet(),
+            const SizedBox(height: 20),
+          ],
+          if (selezionato != null)
+            _CardDettagliWallet(wallet: selezionato)
+          else
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Nessun portafoglio disponibile.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Categorie di spesa ─────────────────────────
+
+class _PaginaCategorie extends StatefulWidget {
+  const _PaginaCategorie();
+
+  @override
+  State<_PaginaCategorie> createState() => _PaginaCategorieState();
+}
+
+class _PaginaCategorieState extends State<_PaginaCategorie> {
   final Set<String> _selezionate = {};
   String? _ultimoWalletCaricato;
 
@@ -42,17 +598,24 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
         walletId,
         orarioNotifiche: settings.orarioNotifiche,
       );
-      if (settings.userId == null) {
-        settings.load(token);
-      }
     }
+  }
+
+  Future<void> _ricarica() async {
+    final wallet = context.read<WalletProvider>().selectedWallet;
+    if (wallet == null) return;
+    final token = requireToken(context);
+    if (token == null) return;
+    await context.read<DashboardProvider>().loadCategorie(
+      token,
+      wallet.documentId,
+      orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final walletProvider = context.watch<WalletProvider>();
-    final wallets = walletProvider.wallets;
-    final walletSelezionato = walletProvider.selectedWallet;
+    final walletSelezionato = context.watch<WalletProvider>().selectedWallet;
     final dashboard = context.watch<DashboardProvider>();
 
     final categorie = walletSelezionato == null
@@ -61,218 +624,85 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
               .where((c) => c.walletDocumentId == walletSelezionato.documentId)
               .toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        onPressed: () =>
-            _mostraDialogNuovaCategoria(context, walletSelezionato),
-        child: const Icon(Icons.add),
-      ),
-      body: RefreshIndicator(
+    return _Sottopagina(
+      titolo: 'Categorie di spesa',
+      fab: walletSelezionato == null
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              onPressed: () =>
+                  _mostraDialogNuovaCategoria(context, walletSelezionato),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuova categoria'),
+            ),
+      child: RefreshIndicator(
         color: AppColors.accent,
         backgroundColor: AppColors.card,
-        onRefresh: () async {
-          final token = requireToken(context);
-          if (token == null) return;
-          final settings = context.read<UserSettingsProvider>();
-          await context.read<WalletProvider>().loadWallets(token, userId: settings.userId);
-          if (!context.mounted) return;
-          if (walletSelezionato != null) {
-            await context.read<DashboardProvider>().loadCategorie(
-              token,
-              walletSelezionato.documentId,
-              orarioNotifiche: settings.orarioNotifiche,
-            );
-          }
-        },
-        child: SingleChildScrollView(
+        onRefresh: _ricarica,
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              const Text(
-                'CONFIGURA',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 2,
-                ),
-              ),
-              const Text(
-                'Impostazioni',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Sicurezza — accesso con impronta (login biometrico)
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) => Container(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    activeThumbColor: AppColors.accent,
-                    title: const Text(
-                      'Accesso con impronta',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Accedi con l\'impronta invece di email e password',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                    value: auth.biometriaAbilitata,
-                    onChanged: (v) async {
-                      if (!v) {
-                        await auth.disabilitaBiometria();
-                      } else if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Esci e accedi con email e password per attivarlo'),
-                          ),
-                        );
-                      }
-                    },
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+          children: [
+            // Cambiando wallet le spunte non hanno più senso: le azzeriamo.
+            _TabWallet(onCambio: () => setState(() => _selezionate.clear())),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Categorie (${categorie.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-              ),
-
-              // Tab wallet
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: wallets.map((w) {
-                    final isSelected =
-                        walletSelezionato?.documentId == w.documentId;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          walletProvider.setSelectedWallet(w);
-                          setState(() => _selezionate.clear());
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.accent
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.accent
-                                  : AppColors.border,
-                            ),
-                          ),
-                          child: Text(
-                            w.nome,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Card notifiche
-              const _CardNotifiche(),
-              const SizedBox(height: 20),
-
-              // Card dettagli wallet
-              if (walletSelezionato != null)
-                _CardDettagliWallet(wallet: walletSelezionato),
-              const SizedBox(height: 20),
-
-              // Header categorie con conteggio e bottone elimina selezionate
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Categorie (${categorie.length})',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                if (_selezionate.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => _eliminaSelezionate(walletSelezionato),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 16,
+                      color: AppColors.error,
                     ),
-                  ),
-                  if (_selezionate.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () =>
-                          _eliminaSelezionate(context, walletSelezionato),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        size: 16,
+                    label: Text(
+                      'Elimina (${_selezionate.length})',
+                      style: const TextStyle(
                         color: AppColors.error,
-                      ),
-                      label: Text(
-                        'Elimina (${_selezionate.length})',
-                        style: const TextStyle(
-                          color: AppColors.error,
-                          fontSize: 13,
-                        ),
+                        fontSize: 13,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Lista categorie
-              ...categorie.map(
-                (cat) => _RigaCategoria(
-                  categoria: cat,
-                  isSelezionata: _selezionate.contains(cat.documentId),
-                  onCheckbox: (val) {
-                    setState(() {
-                      if (val == true) {
-                        _selezionate.add(cat.documentId);
-                      } else {
-                        _selezionate.remove(cat.documentId);
-                      }
-                    });
-                  },
-                  onEdit: () => _mostraDialogModificaCategoria(context, cat),
-                ),
-              ),
-
-              if (categorie.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'Nessuna categoria.\nPremi + per aggiungerne una.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary),
                   ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...categorie.map(
+              (cat) => _RigaCategoria(
+                categoria: cat,
+                isSelezionata: _selezionate.contains(cat.documentId),
+                onCheckbox: (val) {
+                  setState(() {
+                    if (val == true) {
+                      _selezionate.add(cat.documentId);
+                    } else {
+                      _selezionate.remove(cat.documentId);
+                    }
+                  });
+                },
+                onEdit: () => _mostraDialogModificaCategoria(context, cat),
+              ),
+            ),
+            if (categorie.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Nessuna categoria.\nPremi "Nuova categoria" per aggiungerne una.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -307,11 +737,7 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
           );
           if (ok && ctx.mounted) {
             Navigator.pop(ctx);
-            await context.read<DashboardProvider>().loadCategorie(
-              token,
-              wallet.documentId,
-              orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
-            );
+            await _ricarica();
             if (mounted) setState(() {});
           } else if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
@@ -348,7 +774,6 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
           if (nomeCtrl.text.isEmpty) return;
           final token = requireToken(context);
           if (token == null) return;
-          final wallet = context.read<WalletProvider>().selectedWallet;
           final provider = context.read<ImpostazioniProvider>();
           final ok = await provider.updateCategory(
             token,
@@ -359,13 +784,7 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
           );
           if (ok && ctx.mounted) {
             Navigator.pop(ctx);
-            if (wallet != null) {
-              await context.read<DashboardProvider>().loadCategorie(
-                token,
-                wallet.documentId,
-                orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
-              );
-            }
+            await _ricarica();
             if (mounted) setState(() {});
           } else if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
@@ -382,25 +801,124 @@ class _ImpostazioniScreenState extends State<ImpostazioniScreen> {
     );
   }
 
-  Future<void> _eliminaSelezionate(BuildContext context, Wallet? wallet) async {
+  // Niente BuildContext come parametro: usiamo quello dello State, così il
+  // check `mounted` copre davvero il context che stiamo usando.
+  Future<void> _eliminaSelezionate(Wallet? wallet) async {
     if (wallet == null) return;
+
+    // Eliminare una categoria porta con sé le sue transazioni: chiediamo conferma.
+    final conferma = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text(
+          'Eliminare le categorie?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Stai per eliminare ${_selezionate.length} categorie e le transazioni collegate. L\'operazione non è reversibile.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Annulla',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Elimina',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (conferma != true || !mounted) return;
+
     final token = requireToken(context);
     if (token == null) return;
     final provider = context.read<ImpostazioniProvider>();
-    final orario = context.read<UserSettingsProvider>().orarioNotifiche;
 
     for (final id in _selezionate.toList()) {
       await provider.deleteCategory(token, id);
     }
     if (!mounted) return;
     setState(() => _selezionate.clear());
-    if (context.mounted) {
-      await context.read<DashboardProvider>().loadCategorie(
-        token,
-        wallet.documentId,
-        orarioNotifiche: orario,
-      );
-    }
+    await _ricarica();
+  }
+}
+
+// ───────────────────────── Notifiche e sicurezza ─────────────────────────
+
+class _PaginaNotifiche extends StatelessWidget {
+  const _PaginaNotifiche();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _Sottopagina(
+      titolo: 'Notifiche',
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(24),
+        child: _CardNotifiche(),
+      ),
+    );
+  }
+}
+
+class _PaginaSicurezza extends StatelessWidget {
+  const _PaginaSicurezza();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Sottopagina(
+      titolo: 'Sicurezza',
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: AppColors.accent,
+              title: const Text(
+                'Accesso con impronta',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: const Text(
+                'Accedi con l\'impronta invece di email e password',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+              value: auth.biometriaAbilitata,
+              onChanged: (v) async {
+                if (!v) {
+                  await auth.disabilitaBiometria();
+                } else if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Esci e accedi con email e password per attivarlo',
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1021,6 +1539,27 @@ class _CardNotifiche extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+          // Verifica al volo che permessi e canale funzionino: le ricorrenti
+          // scattano fra settimane, senza questo non sai se sono rotte.
+          TextButton.icon(
+            icon: const Icon(Icons.notifications_active_outlined, size: 18),
+            label: const Text('Invia notifica di prova'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+            onPressed: () async {
+              final ok = await NotificationService.test();
+              final n = await NotificationService.pianificate();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(ok
+                      ? 'Notifica inviata · $n ricorrenti pianificate'
+                      : 'Permesso notifiche negato: attivalo dalle impostazioni Android'),
+                  backgroundColor: ok ? AppColors.accent : AppColors.error,
+                ),
+              );
+            },
           ),
         ],
       ),

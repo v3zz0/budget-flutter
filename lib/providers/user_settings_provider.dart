@@ -6,6 +6,8 @@ class UserSettingsProvider extends ChangeNotifier {
   final UserSettingsService _service = UserSettingsService();
 
   int? userId;
+  String username = '';
+  String email = '';
   TimeOfDay? orarioNotifiche;
   bool isLoading = false;
   String? errore;
@@ -18,6 +20,8 @@ class UserSettingsProvider extends ChangeNotifier {
     try {
       final data = await _service.loadMe(token);
       userId = data['id'];
+      username = data['username'] ?? '';
+      email = data['email'] ?? '';
       final orario = data['orarioNotifiche'] as String?;
       if (orario != null && orario.isNotEmpty) {
         // Strapi ritorna formato "HH:MM:SS.000"
@@ -34,6 +38,29 @@ class UserSettingsProvider extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // Ritornano null se ok, altrimenti il messaggio d'errore da mostrare.
+  Future<String?> updateProfilo(String token, String nuovoUsername, String nuovaEmail) async {
+    if (userId == null) return 'Utente non caricato';
+    try {
+      await _service.updateProfilo(token, userId!, username: nuovoUsername, email: nuovaEmail);
+      username = nuovoUsername;
+      email = nuovaEmail;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return erroreLeggibile(e);
+    }
+  }
+
+  Future<String?> cambiaPassword(String token, String attuale, String nuova) async {
+    try {
+      await _service.cambiaPassword(token, attuale, nuova);
+      return null;
+    } catch (e) {
+      return erroreLeggibile(e);
     }
   }
 

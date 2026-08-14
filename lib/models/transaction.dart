@@ -5,6 +5,7 @@ class Transaction {
   final DateTime data;
   final bool transazioneRicorrente;
   final DateTime? ricorrenzaTemporale; // nullable — non sempre presente
+  final bool contanti; // pagata in contanti → esclusa dal confronto in analisi
   final String categoriaDocumentId; // riferimento alla categoria padre
 
   Transaction({
@@ -14,6 +15,7 @@ class Transaction {
     required this.data,
     required this.transazioneRicorrente,
     this.ricorrenzaTemporale,
+    this.contanti = false,
     required this.categoriaDocumentId,
   });
 
@@ -36,6 +38,7 @@ class Transaction {
       ricorrenzaTemporale: json['RicorrenzaTemporale'] != null
           ? DateTime.parse(json['RicorrenzaTemporale'])
           : null,
+      contanti: json['Contanti'] ?? false,
       categoriaDocumentId: categoriaId,
     );
   }
@@ -47,6 +50,7 @@ class Transaction {
         'Descrizione': descrizione,
         'Data': data.toIso8601String().substring(0, 10),
         'TransazioneRicorrente': transazioneRicorrente,
+        'Contanti': contanti,
         'categorie': categoriaDocumentId,
       },
     };

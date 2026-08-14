@@ -68,12 +68,47 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      // exact: con inexact + Doze Android rimanda la sveglia anche di ore/giorni.
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       // Ripete automaticamente ogni mese, stesso giorno.
       // ponytail: per mesi senza quel giorno (es. 31 a febbraio) il plugin salta/clampa; ok per ora.
       matchDateTimeComponents: DateTimeComponents.dayOfMonthAndTime,
     );
+  }
+
+  /// Notifica immediata di prova: se non arriva, il problema sono i permessi
+  /// (Android 13+ / batteria), non la pianificazione.
+  /// Ritorna false se il permesso notifiche è negato.
+  static Future<bool> test() async {
+    if (_disabilitato) return false;
+    await init();
+    final androidImpl = _plugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final concesso = await androidImpl?.areNotificationsEnabled() ?? true;
+    if (!concesso) return false;
+
+    await _plugin.show(
+      999999,
+      'Notifiche attive',
+      'Riceverai un avviso per ogni addebito ricorrente.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'budget_recurring',
+          'Transazioni ricorrenti',
+          channelDescription: 'Notifiche per addebiti ricorrenti',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+    return true;
+  }
+
+  /// Quante notifiche risultano effettivamente pianificate dal sistema.
+  static Future<int> pianificate() async {
+    if (_disabilitato) return 0;
+    return (await _plugin.pendingNotificationRequests()).length;
   }
 
   // Pianifica tutte le ricorrenti — chiamato dopo loadCategorie

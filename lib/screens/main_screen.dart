@@ -155,7 +155,8 @@ class _MainScreenState extends State<MainScreen> {
 
       // Bottom nav custom: 4 tab piatti + un FAB centrale sporgente per "Transazioni".
       // L'altezza extra in alto serve a far rientrare il FAB senza clipping.
-      extendBody: true,
+      // NIENTE extendBody: la barra è opaca, con extendBody il contenuto ci
+      // scorreva sotto e l'ultima riga delle liste spariva.
       bottomNavigationBar: _BottomNav(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),

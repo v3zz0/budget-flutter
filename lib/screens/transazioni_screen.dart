@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/transazione_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../services/api_client.dart';
+import '../services/scontrino_service.dart';
 import '../theme.dart';
 import '../models/category.dart';
 import '../models/transaction.dart';
@@ -26,7 +28,49 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
   final TextEditingController _descrizioneController = TextEditingController();
   DateTime _dataSelezionata = DateTime.now();
   bool _ricorrente = false;
+  bool _contanti = false;
+  bool _scansionando = false;
   String? _ultimoWalletCaricato;
+
+  // Foto dello scontrino -> importo e negozio precompilati. Il salvataggio
+  // resta manuale: qui riempiamo solo i campi, li controlli tu.
+  Future<void> _scansionaScontrino() async {
+    setState(() => _scansionando = true);
+    try {
+      final foto = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        // Basta e avanza per l'OCR: una foto da 12MP è 4MB e non legge meglio.
+        maxWidth: 1500,
+        imageQuality: 60,
+      );
+      if (foto == null) return; // annullato
+
+      final dati = await ScontrinoService.leggi(foto.path);
+      if (!mounted) return;
+
+      if (dati.totale != null) {
+        _importoController.text = dati.totale!.toStringAsFixed(2);
+      }
+      // La descrizione non sovrascrive mai quello che hai già scritto.
+      if (dati.descrizione != null && _descrizioneController.text.isEmpty) {
+        _descrizioneController.text = dati.descrizione!;
+      }
+
+      if (dati.totale == null) {
+        _avviso('Totale non riconosciuto, scrivilo a mano');
+      }
+    } catch (e) {
+      if (mounted) _avviso('Errore nella lettura dello scontrino');
+    } finally {
+      if (mounted) setState(() => _scansionando = false);
+    }
+  }
+
+  void _avviso(String messaggio) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(messaggio), backgroundColor: AppColors.error),
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -113,7 +157,39 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Scansione scontrino: OCR on-device, la foto non esce dal telefono
+              OutlinedButton.icon(
+                onPressed: _scansionando ? null : _scansionaScontrino,
+                icon: _scansionando
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          color: AppColors.accent,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.document_scanner_outlined, size: 20),
+                label: Text(
+                  _scansionando ? 'Leggo lo scontrino...' : 'Scansiona scontrino',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  backgroundColor: AppColors.card,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Importo — grande e centrato
               Container(
@@ -395,6 +471,56 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+
+              // Toggle contanti
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.payments_outlined,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Contanti',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            'Esclusa dal confronto con l\'estratto conto',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _contanti,
+                      activeThumbColor: AppColors.accent,
+                      onChanged: (val) => setState(() => _contanti = val),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 32),
 
               // Bottone salva
@@ -429,6 +555,7 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                               descrizione: _descrizioneController.text.trim(),
                               data: _dataSelezionata,
                               transazioneRicorrente: _ricorrente,
+                              contanti: _contanti,
                               categoriaDocumentId:
                                   _categoriaSelezionata!.documentId,
                             );
@@ -458,6 +585,7 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                               setState(() {
                                 _categoriaSelezionata = null;
                                 _ricorrente = false;
+                                _contanti = false;
                                 _dataSelezionata = DateTime.now();
                               });
                               widget.onSalvato?.call();
