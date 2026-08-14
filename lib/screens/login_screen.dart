@@ -38,6 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // Prova l'accesso con impronta; se OK rifà il login con le credenziali salvate.
   Future<void> _tentaBiometria({bool automatico = false}) async {
     if (automatico && _biometricTentato) return;
+    // Senza server non c'è nessuno a cui chiedere il login.
+    if (!Config.configurato) return;
     _biometricTentato = true;
     final auth = context.read<AuthProvider>();
     if (!auth.biometriaAbilitata) return;
@@ -66,6 +68,15 @@ class _LoginScreenState extends State<LoginScreen> {
     // e resta salvato per gli avvii successivi.
     await Config.salvaUrl(_serverController.text);
     if (!context.mounted) return;
+    if (!Config.configurato) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Inserisci l\'indirizzo del server'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     _serverController.text = Config.apiBaseUrl;
 
     final auth = context.read<AuthProvider>();
@@ -178,6 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Server',
                     labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    hintText: 'budget.esempio.com',
+                    hintStyle: const TextStyle(color: AppColors.textSecondary),
                     prefixIcon: const Icon(Icons.dns_outlined, color: AppColors.textSecondary),
                     filled: true,
                     fillColor: AppColors.input,
