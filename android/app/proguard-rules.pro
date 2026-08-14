@@ -6,3 +6,7 @@
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 -dontwarn com.google.mlkit.vision.text.japanese.**
 -dontwarn com.google.mlkit.vision.text.korean.**
+
+# flutter_gemma → MediaPipe: due classi protobuf opzionali (profiling e
+# graph template) che non finiscono nell'APK.
+-dontwarn com.google.mediapipe.proto.**
