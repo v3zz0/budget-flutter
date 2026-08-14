@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_gemma/flutter_gemma.dart' show CancelToken;
 import 'package:provider/provider.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/impostazioni_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/ai_settings_service.dart';
 import '../services/api_client.dart';
+import '../services/gemma_locale_service.dart';
 import '../services/notification_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
@@ -80,6 +83,12 @@ class ImpostazioniScreen extends StatelessWidget {
             titolo: 'Sicurezza',
             sottotitolo: 'Accesso con impronta',
             apri: () => const _PaginaSicurezza(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.auto_awesome_outlined,
+            titolo: 'Analisi AI',
+            sottotitolo: 'Quale modello analizza gli estratti conto',
+            apri: () => const _PaginaAnalisiAi(),
           ),
         ],
       ),
@@ -916,6 +925,543 @@ class _PaginaSicurezza extends StatelessWidget {
               },
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Analisi AI ─────────────────────────
+
+/// Sceglie chi genera categorie e giudizio quando analizzi un estratto conto.
+/// L'estrazione dei movimenti NON passa mai di qui: quella la fa il parser sul
+/// server, in modo esatto, qualunque motore tu scelga.
+class _PaginaAnalisiAi extends StatefulWidget {
+  const _PaginaAnalisiAi();
+
+  @override
+  State<_PaginaAnalisiAi> createState() => _PaginaAnalisiAiState();
+}
+
+class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
+  final _service = AiSettingsService();
+  final _urlCtrl = TextEditingController();
+  final _modelloCtrl = TextEditingController();
+  final _chiaveCtrl = TextEditingController();
+
+  ImpostazioniAi _s = const ImpostazioniAi();
+  bool _caricando = true;
+  bool _salvando = false;
+  bool _provando = false;
+
+  // Modello sul telefono
+  bool _modelloScaricato = false;
+  int? _avanzamento; // null = nessun download in corso
+  CancelToken? _annulla;
+
+  @override
+  void initState() {
+    super.initState();
+    _carica();
+  }
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    _modelloCtrl.dispose();
+    _chiaveCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _carica() async {
+    final token = requireToken(context);
+    if (token == null) return;
+    try {
+      final s = await _service.carica(token);
+      final scaricato = await GemmaLocaleService.installato();
+      if (!mounted) return;
+      setState(() {
+        _s = s;
+        _urlCtrl.text = s.url;
+        _modelloCtrl.text = s.modello;
+        _modelloScaricato = scaricato;
+        _caricando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _caricando = false);
+      _avviso(erroreLeggibile(e));
+    }
+  }
+
+  void _cambiaMotore(MotoreAi m) {
+    setState(() {
+      _s = _s.copyWith(motore: m);
+      // Preset comodi, sovrascrivibili a mano.
+      if (m == MotoreAi.openrouter) {
+        if (_urlCtrl.text.isEmpty || _urlCtrl.text.contains('11434')) {
+          _urlCtrl.text = 'https://openrouter.ai/api/v1';
+        }
+      } else if (m == MotoreAi.ollama && _urlCtrl.text.contains('openrouter')) {
+        _urlCtrl.text = '';
+      }
+    });
+  }
+
+  ImpostazioniAi get _daForm => _s.copyWith(
+        url: _urlCtrl.text.trim(),
+        modello: _modelloCtrl.text.trim(),
+      );
+
+  Future<void> _prova() async {
+    final token = requireToken(context);
+    if (token == null) return;
+    setState(() => _provando = true);
+    try {
+      final (ok, messaggio) = await _service.prova(
+        token,
+        _daForm,
+        chiave: _chiaveCtrl.text.trim(),
+      );
+      if (mounted) _avviso(messaggio, errore: !ok);
+    } catch (e) {
+      if (mounted) _avviso(erroreLeggibile(e));
+    } finally {
+      if (mounted) setState(() => _provando = false);
+    }
+  }
+
+  Future<void> _salva() async {
+    final token = requireToken(context);
+    final userId = context.read<UserSettingsProvider>().userId;
+    if (token == null || userId == null) return;
+    setState(() => _salvando = true);
+    try {
+      await _service.salva(token, userId, _daForm, chiave: _chiaveCtrl.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _s = _daForm.copyWith(
+          chiaveImpostata: _s.chiaveImpostata || _chiaveCtrl.text.trim().isNotEmpty,
+        );
+        _chiaveCtrl.clear();
+      });
+      _avviso('Impostazioni salvate', errore: false);
+    } catch (e) {
+      if (mounted) _avviso(erroreLeggibile(e));
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  Future<void> _scaricaModello() async {
+    final annulla = CancelToken();
+    setState(() {
+      _avanzamento = 0;
+      _annulla = annulla;
+    });
+    try {
+      await GemmaLocaleService.scarica(
+        annulla: annulla,
+        onProgress: (p) {
+          if (mounted) setState(() => _avanzamento = p);
+        },
+      );
+      if (!mounted) return;
+      setState(() => _modelloScaricato = true);
+      _avviso('Modello pronto, funziona anche senza rete', errore: false);
+    } catch (e) {
+      if (mounted) {
+        _avviso(
+          CancelToken.isCancel(e) ? 'Download annullato' : 'Download fallito: $e',
+        );
+      }
+    } finally {
+      if (mounted) setState(() { _avanzamento = null; _annulla = null; });
+    }
+  }
+
+  Future<void> _eliminaModello() async {
+    await GemmaLocaleService.elimina();
+    if (!mounted) return;
+    setState(() => _modelloScaricato = false);
+    _avviso('Modello rimosso, spazio liberato', errore: false);
+  }
+
+  void _avviso(String messaggio, {bool errore = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(messaggio),
+        backgroundColor: errore ? AppColors.error : AppColors.accent,
+      ),
+    );
+  }
+
+  /// Elenco modelli OpenRouter, con ricerca. I gratuiti stanno in cima.
+  Future<void> _scegliModelloOpenRouter() async {
+    List<String> modelli;
+    try {
+      modelli = await _service.modelliOpenRouter();
+    } catch (e) {
+      if (mounted) _avviso('Elenco modelli non raggiungibile, scrivilo a mano');
+      return;
+    }
+    if (!mounted) return;
+
+    final scelto = await showDialog<String>(
+      context: context,
+      builder: (_) => _DialogoModelli(modelli: modelli),
+    );
+    if (scelto != null) setState(() => _modelloCtrl.text = scelto);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_caricando) {
+      return const _Sottopagina(
+        titolo: 'Analisi AI',
+        child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      );
+    }
+
+    final telefono = _s.motore == MotoreAi.telefono;
+
+    return _Sottopagina(
+      titolo: 'Analisi AI',
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text(
+            'I movimenti vengono letti dal server in modo esatto, senza AI. '
+            'Il modello qui sotto serve solo a suggerire le categorie e a '
+            'scrivere il giudizio del mese.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+
+          _SceltaMotore(
+            icona: Icons.dns_outlined,
+            titolo: 'Server Ollama',
+            sottotitolo: 'Il tuo mini PC. Solo dalla rete di casa',
+            attivo: _s.motore == MotoreAi.ollama,
+            onTap: () => _cambiaMotore(MotoreAi.ollama),
+          ),
+          _SceltaMotore(
+            icona: Icons.cloud_outlined,
+            titolo: 'OpenRouter',
+            sottotitolo: 'Cloud, funziona ovunque. Ci sono modelli gratuiti',
+            attivo: _s.motore == MotoreAi.openrouter,
+            onTap: () => _cambiaMotore(MotoreAi.openrouter),
+          ),
+          _SceltaMotore(
+            icona: Icons.smartphone_outlined,
+            titolo: 'Sul telefono',
+            sottotitolo: 'Gemma 4 E2B. Offline, nulla esce dal dispositivo',
+            attivo: telefono,
+            onTap: () => _cambiaMotore(MotoreAi.telefono),
+          ),
+          const SizedBox(height: 20),
+
+          if (!telefono) ...[
+            _BloccoImpostazioni(
+              titolo: 'CONNESSIONE',
+              figli: [
+                _CampoTesto(
+                  etichetta: _s.motore == MotoreAi.ollama
+                      ? 'Indirizzo (es. http://192.168.1.10:11434)'
+                      : 'Indirizzo API',
+                  controller: _urlCtrl,
+                  icona: Icons.link,
+                  tipo: TextInputType.url,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _CampoTesto(
+                        etichetta: 'Modello',
+                        controller: _modelloCtrl,
+                        icona: Icons.memory,
+                      ),
+                    ),
+                    if (_s.motore == MotoreAi.openrouter) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _scegliModelloOpenRouter,
+                        icon: const Icon(Icons.search, color: AppColors.accent),
+                        tooltip: 'Scegli dall\'elenco',
+                      ),
+                    ],
+                  ],
+                ),
+                if (_s.motore == MotoreAi.openrouter) ...[
+                  const SizedBox(height: 12),
+                  _CampoTesto(
+                    etichetta: _s.chiaveImpostata
+                        ? 'Chiave API (già salvata, riscrivi per cambiarla)'
+                        : 'Chiave API',
+                    controller: _chiaveCtrl,
+                    icona: Icons.key,
+                    password: true,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _provando ? null : _prova,
+                  icon: _provando
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accent,
+                          ),
+                        )
+                      : const Icon(Icons.wifi_tethering, size: 18),
+                  label: const Text('Prova connessione'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: const BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            _BloccoModelloLocale(
+              scaricato: _modelloScaricato,
+              avanzamento: _avanzamento,
+              onScarica: _scaricaModello,
+              onAnnulla: () => _annulla?.cancel('Annullato'),
+              onElimina: _eliminaModello,
+            ),
+
+          const SizedBox(height: 20),
+          _BottonePieno(
+            testo: 'Salva impostazioni',
+            inCorso: _salvando,
+            onPressed: _salva,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card di scelta del motore, con il pallino di selezione.
+class _SceltaMotore extends StatelessWidget {
+  final IconData icona;
+  final String titolo;
+  final String sottotitolo;
+  final bool attivo;
+  final VoidCallback onTap;
+
+  const _SceltaMotore({
+    required this.icona,
+    required this.titolo,
+    required this.sottotitolo,
+    required this.attivo,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: attivo ? AppColors.accent.withValues(alpha: 0.10) : AppColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: attivo ? AppColors.accent : AppColors.border,
+            width: attivo ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icona, color: attivo ? AppColors.accent : AppColors.textSecondary),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titolo,
+                    style: TextStyle(
+                      color: attivo ? AppColors.accent : AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    sottotitolo,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              attivo ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              color: attivo ? AppColors.accent : AppColors.textSecondary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stato del modello scaricato sul telefono: download, avanzamento, rimozione.
+class _BloccoModelloLocale extends StatelessWidget {
+  final bool scaricato;
+  final int? avanzamento;
+  final VoidCallback onScarica;
+  final VoidCallback onAnnulla;
+  final VoidCallback onElimina;
+
+  const _BloccoModelloLocale({
+    required this.scaricato,
+    required this.avanzamento,
+    required this.onScarica,
+    required this.onAnnulla,
+    required this.onElimina,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inCorso = avanzamento != null;
+
+    return _BloccoImpostazioni(
+      titolo: 'MODELLO SUL DISPOSITIVO',
+      figli: [
+        const Text(
+          'Gemma 4 E2B occupa 2,4 GB sul telefono e circa 3 GB di memoria '
+          'mentre lavora. Serve un telefono con almeno 8 GB di RAM: sotto, '
+          'Android può chiudere l\'app durante l\'analisi.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        const SizedBox(height: 14),
+        if (inCorso) ...[
+          LinearProgressIndicator(
+            value: avanzamento! / 100,
+            backgroundColor: AppColors.input,
+            color: AppColors.accent,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Scaricamento $avanzamento% — tienilo sotto Wi-Fi',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: onAnnulla,
+            child: const Text('Annulla', style: TextStyle(color: AppColors.error)),
+          ),
+        ] else if (scaricato) ...[
+          Row(
+            children: [
+              const Icon(Icons.check_circle, color: AppColors.accent, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Modello installato e pronto',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                ),
+              ),
+              TextButton(
+                onPressed: onElimina,
+                child: const Text(
+                  'Rimuovi',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
+          ),
+        ] else
+          OutlinedButton.icon(
+            onPressed: onScarica,
+            icon: const Icon(Icons.download_outlined, size: 18),
+            label: const Text('Scarica modello (2,4 GB)'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Elenco modelli OpenRouter con campo di ricerca.
+class _DialogoModelli extends StatefulWidget {
+  final List<String> modelli;
+  const _DialogoModelli({required this.modelli});
+
+  @override
+  State<_DialogoModelli> createState() => _DialogoModelliState();
+}
+
+class _DialogoModelliState extends State<_DialogoModelli> {
+  String _filtro = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final visibili = widget.modelli
+        .where((m) => m.toLowerCase().contains(_filtro.toLowerCase()))
+        .take(60)
+        .toList();
+
+    return AlertDialog(
+      backgroundColor: AppColors.card,
+      title: const Text(
+        'Scegli il modello',
+        style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              autofocus: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Cerca (es. gemma, free)',
+                hintStyle: TextStyle(color: AppColors.textSecondary),
+                prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+              ),
+              onChanged: (v) => setState(() => _filtro = v),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: visibili.length,
+                itemBuilder: (_, i) => ListTile(
+                  dense: true,
+                  title: Text(
+                    visibili[i],
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  trailing: visibili[i].endsWith(':free')
+                      ? const Text(
+                          'gratis',
+                          style: TextStyle(color: AppColors.accent, fontSize: 11),
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(context, visibili[i]),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

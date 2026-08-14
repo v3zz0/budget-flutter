@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/analisi_provider.dart';
+import '../providers/dashboard_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../services/analisi_service.dart';
 import '../services/api_client.dart';
@@ -100,6 +101,13 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
     await context.read<AnalisiProvider>().analizza(
       token: token,
       walletId: wallet.selectedWallet!.documentId,
+      // Servono solo al modello sul telefono, per suggerire le categorie.
+      nomiCategorie: context
+          .read<DashboardProvider>()
+          .categorie
+          .where((c) => c.walletDocumentId == wallet.selectedWallet!.documentId)
+          .map((c) => c.nome)
+          .toList(),
     );
   }
 
@@ -218,9 +226,37 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
               if (provider.isLoading) ...[
                 const SizedBox(height: 12),
                 const Text(
-                  'L\'AI sta leggendo il PDF e confrontando le transazioni.\n'
-                  'L\'operazione può durare anche 30-60 secondi.',
+                  'Sto leggendo il documento e confrontando le transazioni.\n'
+                  'Con un formato riconosciuto è quasi immediato, altrimenti '
+                  'ci pensa l\'AI e servono 30-60 secondi.',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+
+              if (provider.generandoInLocale) ...[
+                const SizedBox(height: 12),
+                const Row(
+                  children: [
+                    SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Confronto pronto. Il modello sul telefono sta '
+                        'scrivendo categorie e giudizio.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
 
