@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
+/// 401 — il JWT non è più valido: la sessione va chiusa davvero.
 class UnauthorizedException implements Exception {
   final String message;
   UnauthorizedException([this.message = 'Sessione scaduta']);
@@ -12,9 +13,24 @@ class UnauthorizedException implements Exception {
   String toString() => message;
 }
 
+/// 403 — il token è valido, ma il ruolo non ha il permesso su quella rotta.
+/// NON è una sessione scaduta: quasi sempre è un permesso Strapi non abilitato
+/// (Settings → Users & Permissions → Roles → Authenticated). Deve restare un
+/// errore della singola chiamata, altrimenti una feature secondaria che il
+/// server nega butta fuori l'utente dall'intera app.
+class ForbiddenException implements Exception {
+  final String message;
+  ForbiddenException([this.message = 'Permesso negato']);
+  @override
+  String toString() => message;
+}
+
 // Converte un'eccezione tecnica in un messaggio user-friendly
 String erroreLeggibile(Object e) {
   if (e is UnauthorizedException) return 'Sessione scaduta. Effettua nuovamente il login.';
+  if (e is ForbiddenException) {
+    return 'Il server non autorizza questa funzione. Controlla i permessi del tuo utente.';
+  }
   if (e is TimeoutException) return 'Il server non risponde. Controlla la connessione.';
   if (e is SocketException) return 'Nessuna connessione a internet.';
   if (e is HttpException) return 'Errore di comunicazione con il server.';
@@ -33,6 +49,14 @@ class ApiClient {
   // Chiave globale per navigare anche senza BuildContext
   static final navigatorKey = GlobalKey<NavigatorState>();
   static const timeout = Duration(seconds: 15);
+
+  /// Invocata quando il server dice che il JWT non vale più (401).
+  /// La registra main.dart e la implementa AuthProvider: il layer HTTP segnala
+  /// e basta, non naviga e non tocca lo stato di sessione. Prima lo faceva:
+  /// un singolo 403 su una rotta secondaria azzerava lo stack di navigazione
+  /// lasciando però token e isLoggedIn intatti, e l'app rimbalzava
+  /// login → home → errore → login all'infinito.
+  static void Function()? onSessioneScaduta;
 
   static Map<String, String> _headers(String? token) => {
         'Content-Type': 'application/json',
@@ -64,16 +88,21 @@ class ApiClient {
   }
 
   static void _check(http.Response res) {
-    if (res.statusCode == 401 || res.statusCode == 403) {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+    if (res.statusCode == 401) {
+      onSessioneScaduta?.call();
       throw UnauthorizedException();
+    }
+    // 403 = permesso mancante, non sessione scaduta: rilanciamo e basta, così
+    // il try/catch del provider che ha fatto la chiamata può gestirlo da solo.
+    if (res.statusCode == 403) {
+      throw ForbiddenException();
     }
   }
 }
 
 /// Recupera il JWT dall'AuthProvider. Se assente:
 /// - mostra una SnackBar "Sessione scaduta"
-/// - reindirizza al login
+/// - chiude la sessione (che porta al login)
 /// - ritorna null così il chiamante può fare `return`.
 ///
 /// Uso tipico:
@@ -84,11 +113,13 @@ String? requireToken(BuildContext context) {
   final token = context.read<AuthProvider>().token;
   if (token != null && token.isNotEmpty) return token;
 
-  // Token mancante: feedback all'utente + redirect.
+  // Token mancante: feedback all'utente + chiusura sessione. Il redirect passa
+  // dallo stesso punto del 401, così non esistono due strade diverse (e
+  // divergenti) per tornare al login.
   final messenger = ScaffoldMessenger.maybeOf(context);
   messenger?.showSnackBar(
     const SnackBar(content: Text('Sessione scaduta. Effettua nuovamente il login.')),
   );
-  ApiClient.navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+  ApiClient.onSessioneScaduta?.call();
   return null;
 }

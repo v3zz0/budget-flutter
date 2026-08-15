@@ -105,4 +105,22 @@ class AuthProvider extends ChangeNotifier {
     _isLoggedIn = false;
     notifyListeners();
   }
+
+  // Il server ha risposto 401: il JWT non vale più. Diverso da logout(), che è
+  // l'utente che decide di uscire — qui è la sessione che cade sotto i piedi.
+  // Il flag serve perché le chiamate in volo sono parecchie e tornano insieme:
+  // senza, N risposte 401 farebbero partire N chiusure e N redirect.
+  bool _chiusuraInCorso = false;
+
+  Future<void> sessioneScaduta() async {
+    if (_chiusuraInCorso || !_isLoggedIn) return;
+    _chiusuraInCorso = true;
+    try {
+      await logout();
+      _errore = 'Sessione scaduta. Effettua nuovamente il login.';
+      notifyListeners();
+    } finally {
+      _chiusuraInCorso = false;
+    }
+  }
 }

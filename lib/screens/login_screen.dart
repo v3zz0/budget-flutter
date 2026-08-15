@@ -10,6 +10,15 @@ import '../theme.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
+  /// Riabilita il tentativo automatico con l'impronta.
+  /// Va chiamata SOLO quando è l'utente a uscire (bottone logout): in quel caso
+  /// riproporre l'impronta è comodo. Dopo una sessione caduta lato server (401)
+  /// invece il tentativo automatico deve restare fermo, altrimenti l'app
+  /// ritenta all'infinito la stessa cosa che il server continua a rifiutare.
+  static void riabilitaBiometriaAutomatica() {
+    _LoginScreenState._biometricTentato = false;
+  }
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -24,7 +33,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Controlla se la password è visibile — equivalente di ref(false) in Vue
   bool _passwordVisibile = false;
-  bool _biometricTentato = false;
+
+  // static, NON di istanza: ogni ritorno al login costruisce una LoginScreen
+  // nuova, quindi un flag di istanza riparte da false ogni volta e non impedisce
+  // niente. Bastava un errore ripetuto lato server per avere il ciclo
+  // login → impronta → home → errore → login all'infinito.
+  // Il tentativo automatico vale una volta per avvio dell'app; il bottone
+  // "Accedi con impronta" resta sempre premibile a mano.
+  static bool _biometricTentato = false;
 
   @override
   void initState() {

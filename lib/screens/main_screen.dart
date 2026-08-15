@@ -5,6 +5,7 @@ import '../providers/wallet_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../services/api_client.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 import 'transazioni_screen.dart';
 import 'salvadanaio_screen.dart';
 import 'impostazioni_screen.dart';
@@ -90,6 +91,9 @@ class _MainScreenState extends State<MainScreen> {
             tooltip: 'Esci',
             onPressed: () async {
               await auth.logout();
+              // Uscita voluta dall'utente: al ritorno sul login l'impronta può
+              // ripartire da sola.
+              LoginScreen.riabilitaBiometriaAutomatica();
               if (context.mounted) {
                 Navigator.pushReplacementNamed(context, '/login');
               }
