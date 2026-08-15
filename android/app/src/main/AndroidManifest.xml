@@ -32,7 +32,28 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Apertura dal widget in home: senza questo filtro il tap su una
+                 scorciatoia avvia l'app ma l'uri non arriva mai a Dart, quindi
+                 la categoria scelta verrebbe persa. -->
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.LAUNCH"/>
+            </intent-filter>
         </activity>
+
+        <!-- Widget in home. Non esporta niente: lo aggiorna solo l'app, e
+             android:exported="false" basta perché il launcher di sistema è
+             comunque autorizzato a disegnare i widget dichiarati qui. -->
+        <receiver
+            android:name=".widget.BudgetWidgetProvider"
+            android:label="@string/widget_nome"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/budget_widget_info"/>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

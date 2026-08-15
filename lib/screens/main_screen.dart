@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/wallet_provider.dart';
@@ -25,6 +28,8 @@ class _MainScreenState extends State<MainScreen> {
   // Indice della tab attiva — equivalente di quale route è attiva in Vue Router
   int _currentIndex = 0;
 
+  StreamSubscription<Uri?>? _clickWidget;
+
   // Lista delle schermate — in base a _currentIndex mostra quella giusta
   // Equivalente del <RouterView> che cambia componente al cambio di route
   late final List<Widget> _schermate;
@@ -50,7 +55,43 @@ class _MainScreenState extends State<MainScreen> {
     ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _caricaWallets();
+      _ascoltaScorciatoieWidget();
     });
+  }
+
+  /// Tap su una scorciatoia del widget in home.
+  ///
+  /// Due strade da coprire: l'app era chiusa (l'uri arriva dall'intent di
+  /// avvio) oppure era già viva (arriva dallo stream). Senza la prima, un tap
+  /// a freddo aprirebbe l'app sulla dashboard ignorando la categoria scelta.
+  Future<void> _ascoltaScorciatoieWidget() async {
+    try {
+      _apriScorciatoia(await HomeWidget.initiallyLaunchedFromHomeWidget());
+      _clickWidget = HomeWidget.widgetClicked.listen(_apriScorciatoia);
+    } catch (_) {
+      // Su piattaforme senza il plugin non c'è niente da ascoltare.
+    }
+  }
+
+  void _apriScorciatoia(Uri? uri) {
+    if (uri == null || !mounted) return;
+    if (uri.host != 'aggiungi') return;
+
+    final categoria = uri.queryParameters['categoria'];
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TransazioniScreen(
+          categoriaIniziale: categoria,
+          comeRoute: true,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _clickWidget?.cancel();
+    super.dispose();
   }
 
   Future<void> _caricaWallets() async {

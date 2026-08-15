@@ -164,6 +164,36 @@ più veloce e ~40 MB di spazio risparmiato sul telefono.
 flutter install
 ```
 
+## 📲 Widget in home (Android)
+
+Tieni premuto sulla home del telefono → *Widget* → **BudgetApp → Budget**.
+
+Mostra quanto ti resta del budget del mese e fino a quattro scorciatoie: toccando
+una categoria si apre direttamente il form di una nuova spesa con quella
+categoria già scelta.
+
+Come funziona, in breve: i widget Android girano in un `BroadcastReceiver`, senza
+rete e con pochi millisecondi di tempo. Il widget quindi **non chiama le API** —
+è l'app che, ogni volta che ricarica la dashboard, gli lascia i numeri già
+pronti (`lib/widget/widget_bridge.dart` → `BudgetWidgetProvider.kt`).
+
+Due conseguenze da conoscere:
+
+- I numeri si aggiornano **quando apri l'app**, non da soli. In alto a destra
+  c'è sempre l'ora dell'ultimo aggiornamento, e dopo 12 ore l'importo si
+  attenua: un widget vecchio deve sembrare vecchio, non mentire.
+- Dopo il logout smette di mostrare cifre e scrive *"Tocca per accedere"*, invece
+  di lasciare in home i dati dell'ultima sessione.
+
+Le scorciatoie sono le categorie col budget più alto del portafoglio
+selezionato. Una schermata per sceglierle a mano non c'è ancora.
+
+> I colori del widget stanno in `android/app/src/main/res/values/widget_colors.xml`
+> e sono una copia di quelli in `lib/theme.dart`: RemoteViews non può leggere il
+> tema Flutter, quindi se cambi la palette vanno aggiornati in due posti.
+
+---
+
 ## 🚀 Release automatica su GitHub
 
 Oltre a `./pusherapk.sh` (che builda in locale con il keystore sul tuo PC),

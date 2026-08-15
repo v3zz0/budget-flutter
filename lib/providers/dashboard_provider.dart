@@ -4,6 +4,7 @@ import '../services/dashboard_service.dart';
 import '../services/api_client.dart';
 import '../services/notification_service.dart';
 import '../services/soglia_service.dart';
+import '../widget/widget_bridge.dart';
 
 class DashboardProvider extends ChangeNotifier {
   final DashboardService _service = DashboardService();
@@ -55,7 +56,19 @@ class DashboardProvider extends ChangeNotifier {
   // Rimanente = budget - spesi (può essere negativo)
   double get totaleRimanente => totaleBudget - totaleSpesi;
 
-  Future<void> loadCategorie(String token, String walletDocumentId, {TimeOfDay? orarioNotifiche}) async {
+  // Il nome del wallet serve solo al widget in home. Lo passa la dashboard, che
+  // è l'unico punto che lo conosce; gli altri dieci chiamanti di loadCategorie
+  // non devono preoccuparsene, perché il nome cambia solo quando cambia il
+  // wallet e a quel punto la dashboard ricarica comunque.
+  String _walletNome = '';
+
+  Future<void> loadCategorie(
+    String token,
+    String walletDocumentId, {
+    TimeOfDay? orarioNotifiche,
+    String? walletNome,
+  }) async {
+    if (walletNome != null && walletNome.isNotEmpty) _walletNome = walletNome;
     isLoading = true;
     errore = null;
     notifyListeners();
@@ -69,6 +82,7 @@ class DashboardProvider extends ChangeNotifier {
       // dashboard, ma in quest'ordine.
       NotificationService.scheduleAll(_categorie, orario: orarioNotifiche)
           .then((_) => _avvisaSoglieSuperate());
+      _aggiornaWidget(walletDocumentId);
     } catch (e) {
       errore = erroreLeggibile(e);
     } finally {
@@ -88,6 +102,26 @@ class DashboardProvider extends ChangeNotifier {
         c.budget,
       );
     }
+  }
+
+  /// Spinge i totali al widget in home.
+  ///
+  /// Solo se si sta guardando il mese corrente: i totali seguono il mese
+  /// selezionato, e navigando indietro a luglio il widget mostrerebbe i numeri
+  /// di luglio spacciandoli per quelli di adesso.
+  void _aggiornaWidget(String walletId) {
+    final ora = DateTime.now();
+    if (_meseScelto.year != ora.year || _meseScelto.month != ora.month) return;
+
+    WidgetBridge.pushDaDashboard(
+      walletId: walletId,
+      walletNome: _walletNome,
+      categorie: _categorie,
+      mese: _meseScelto,
+      budgetTotale: totaleBudget,
+      speso: totaleSpesi,
+      rimanente: totaleRimanente,
+    );
   }
 
   /// Quanto si chiuderebbe il mese tenendo questo ritmo di spesa.

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart'; // contiene ChangeNotifier
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/auth_service.dart';
 import '../services/api_client.dart';
+import '../widget/widget_bridge.dart';
 
 // ChangeNotifier è la base di Provider — equivalente di defineStore() in Pinia
 class AuthProvider extends ChangeNotifier {
@@ -103,6 +104,9 @@ class AuthProvider extends ChangeNotifier {
     await _secureStorage.delete(key: 'jwt');
     _token = null;
     _isLoggedIn = false;
+    // Il widget in home resterebbe a mostrare i numeri dell'ultima sessione,
+    // che non possiamo più garantire: meglio che chieda di accedere.
+    await WidgetBridge.pushSessioneChiusa();
     notifyListeners();
   }
 

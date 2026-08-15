@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gli stessi colori di lib/theme.dart. Sono duplicati perché il widget è
+  disegnato da RemoteViews, che non ha modo di leggere il tema Flutter:
+  se cambi AppColors, cambia anche qui.
+-->
+<resources>
+    <color name="widget_bg">#FF1A2535</color>
+    <color name="widget_slot_bg">#FF1E2D40</color>
+    <color name="widget_accent">#FF3B82F6</color>
+    <color name="widget_text_primary">#FFE8EFF7</color>
+    <color name="widget_text_secondary">#FF7A90A8</color>
+    <color name="widget_error">#FFF43F5E</color>
+    <color name="widget_track">#332B3A4D</color>
+</resources>

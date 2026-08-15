@@ -38,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
       token,
       wallet.selectedWallet!.documentId,
       orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
+      // Unico punto che passa il nome: serve solo al widget in home.
+      walletNome: wallet.selectedWallet!.nome,
     );
 
     // I consigli sono già pronti sul server (li genera il cron a fine mese):

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layout del widget in home.
+
+  RemoteViews non permette di creare view a runtime, quindi i quattro slot
+  delle scorciatoie sono dichiarati tutti qui e il codice nasconde quelli che
+  non servono. Stessa cosa per il messaggio di stato: c'è sempre, si mostra
+  solo quando i numeri non ci sono (logout, app mai configurata).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="14dp"
+    android:id="@+id/widget_root">
+
+    <!-- Riga in alto: portafoglio a sinistra, ultimo aggiornamento a destra -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <TextView
+            android:id="@+id/widget_wallet"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text_secondary"
+            android:text="BudgetApp" />
+
+        <TextView
+            android:id="@+id/widget_aggiornato"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="@color/widget_text_secondary"
+            android:text="" />
+    </LinearLayout>
+
+    <!-- Il numero che serve davvero: quanto resta -->
+    <TextView
+        android:id="@+id/widget_rimanente"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_text_primary"
+        android:text="—" />
+
+    <TextView
+        android:id="@+id/widget_sottotitolo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="@color/widget_text_secondary"
+        android:text="" />
+
+    <ProgressBar
+        android:id="@+id/widget_barra"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progress="0"
+        android:progressDrawable="@drawable/widget_progress" />
+
+    <!-- Messaggio che sostituisce i numeri quando non ce ne sono -->
+    <TextView
+        android:id="@+id/widget_stato"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"
+        android:textSize="12sp"
+        android:textColor="@color/widget_text_secondary"
+        android:text="" />
+
+    <!-- Scorciatoie: tocca una categoria per registrare una spesa -->
+    <LinearLayout
+        android:id="@+id/widget_slots"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <TextView
+            android:id="@+id/widget_slot_0"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_slot_bg"
+            android:gravity="center"
+            android:padding="6dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_text_primary"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/widget_slot_1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_slot_bg"
+            android:gravity="center"
+            android:padding="6dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_text_primary"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/widget_slot_2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_slot_bg"
+            android:gravity="center"
+            android:padding="6dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_text_primary"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/widget_slot_3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_slot_bg"
+            android:gravity="center"
+            android:padding="6dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_text_primary"
+            android:text="" />
+    </LinearLayout>
+</LinearLayout>

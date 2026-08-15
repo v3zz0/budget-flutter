@@ -21,7 +21,23 @@ class TransazioniScreen extends StatefulWidget {
   /// quindi al termine si fa pop e si torna da dove si era arrivati.
   final Transaction? daModificare;
 
-  const TransazioniScreen({super.key, this.onSalvato, this.daModificare});
+  /// documentId della categoria da preselezionare, usato quando si arriva da
+  /// una scorciatoia del widget in home.
+  final String? categoriaIniziale;
+
+  /// true quando lo schermo è aperto come route sopra la dashboard invece che
+  /// come tab della nav in basso. Cambia due cose: serve una AppBar col tasto
+  /// indietro, e dopo il salvataggio si torna indietro invece di svuotare il
+  /// form restando lì.
+  final bool comeRoute;
+
+  const TransazioniScreen({
+    super.key,
+    this.onSalvato,
+    this.daModificare,
+    this.categoriaIniziale,
+    this.comeRoute = false,
+  });
 
   @override
   State<TransazioniScreen> createState() => _TransazioniScreenState();
@@ -120,17 +136,20 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
       // come route sopra la dashboard.
       if (!_inModifica) setState(() => _categoriaSelezionata = null);
     }
-    _risolviCategoriaDaModificare();
+    _risolviCategoriaIniziale();
   }
 
-  /// Aggancia l'oggetto Category corrispondente alla transazione in modifica,
-  /// appena la lista delle categorie è disponibile.
-  void _risolviCategoriaDaModificare() {
-    final t = widget.daModificare;
-    if (t == null || _categoriaSelezionata != null) return;
+  /// Aggancia l'oggetto Category corrispondente all'id di partenza, appena la
+  /// lista delle categorie è disponibile: arriva dalla transazione in modifica
+  /// oppure dalla scorciatoia del widget in home.
+  void _risolviCategoriaIniziale() {
+    if (_categoriaSelezionata != null) return;
+    final id =
+        widget.daModificare?.categoriaDocumentId ?? widget.categoriaIniziale;
+    if (id == null || id.isEmpty) return;
 
     for (final c in context.read<DashboardProvider>().categorie) {
-      if (c.documentId == t.categoriaDocumentId) {
+      if (c.documentId == id) {
         setState(() => _categoriaSelezionata = c);
         return;
       }
@@ -163,11 +182,13 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
       backgroundColor: AppColors.bg,
       // Come tab non serve (la nav in basso basta); come route sì, altrimenti
       // si esce solo col gesto di sistema.
-      appBar: _inModifica
+      appBar: (_inModifica || widget.comeRoute)
           ? AppBar(
               backgroundColor: AppColors.card,
               foregroundColor: AppColors.textPrimary,
-              title: const Text('Modifica transazione'),
+              title: Text(
+                _inModifica ? 'Modifica transazione' : 'Nuova transazione',
+              ),
             )
           : null,
       body: SafeArea(
@@ -637,10 +658,12 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                               );
                             }
 
-                            // In modifica si torna indietro: la dashboard va
+                            // Aperto come route (modifica o scorciatoia del
+                            // widget): si torna indietro. La dashboard va
                             // ricaricata prima del pop, così chi ci ritrova
                             // sopra vede subito il nuovo importo.
-                            if (successo && daModificare != null) {
+                            if (successo &&
+                                (daModificare != null || widget.comeRoute)) {
                               if (!context.mounted) return;
                               await context
                                   .read<DashboardProvider>()

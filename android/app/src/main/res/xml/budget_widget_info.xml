@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  updatePeriodMillis="0" di proposito: il minimo di sistema è comunque 30
+  minuti, il widget non può fare rete per conto suo, e ridisegnare numeri
+  vecchi costerebbe solo batteria. È l'app a spingere i dati quando ne ha di
+  nuovi (vedi lib/widget/widget_bridge.dart).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:initialLayout="@layout/widget_budget"
+    android:previewLayout="@layout/widget_budget"
+    android:description="@string/widget_descrizione"
+    android:updatePeriodMillis="0" />
