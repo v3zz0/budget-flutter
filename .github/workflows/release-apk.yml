@@ -1,0 +1,204 @@
+# Build e pubblicazione dell'APK di release su GitHub Releases.
+#
+# È la versione CI di pusherapk.sh: stessa logica di bump, stesso nome
+# dell'asset, stesso link permanente. La differenza è che la chiave di firma
+# non sta sul PC di chi rilascia ma nei Secrets del repository, quindi la
+# release si fa da GitHub senza dipendere da una macchina in particolare.
+#
+# Serve una volta sola: Settings → Secrets and variables → Actions
+#   ANDROID_KEYSTORE_BASE64    base64 -w0 del tuo file .jks
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#
+# Il .jks resta fuori dal repo, come deve essere.
+name: Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      versione:
+        description: 'Versione esplicita (es. 1.1.0). Vuoto = bump della patch.'
+        required: false
+        type: string
+
+# Il job committa il bump di versione e crea la release: serve scrittura.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # build.gradle.kts, se il keystore manca, NON fallisce: ripiega sulla
+      # chiave di debug con un warning. In locale è comodo, qui sarebbe un
+      # disastro silenzioso — un APK con la firma sbagliata pubblicato sul link
+      # permanente non si installa sopra quello già sul telefono. Meglio
+      # fermarsi subito e dirlo chiaramente.
+      - name: Verifica che i secret di firma esistano
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mancanti=""
+          [ -n "$KEYSTORE_BASE64" ]  || mancanti="$mancanti ANDROID_KEYSTORE_BASE64"
+          [ -n "$KEYSTORE_PASSWORD" ] || mancanti="$mancanti ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ]         || mancanti="$mancanti ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ]      || mancanti="$mancanti ANDROID_KEY_PASSWORD"
+          if [ -n "$mancanti" ]; then
+            echo "::error::Secret di firma mancanti:$mancanti"
+            echo "Senza, l'APK verrebbe firmato con la chiave di debug e non si"
+            echo "installerebbe come aggiornamento. Vedi README → Release automatica."
+            exit 1
+          fi
+
+      - name: Calcola la nuova versione
+        id: versione
+        run: |
+          set -e
+          # Formato in pubspec.yaml: "1.0.9+10"
+          CURRENT=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version: *//')
+          CUR_NAME="${CURRENT%%+*}"
+          CUR_BUILD="${CURRENT##*+}"
+
+          # Argomento esplicito, altrimenti patch + 1 (come pusherapk.sh)
+          NEW_NAME="${{ inputs.versione }}"
+          if [ -z "$NEW_NAME" ]; then
+            NEW_NAME="${CUR_NAME%.*}.$(( ${CUR_NAME##*.} + 1 ))"
+          fi
+          NEW_BUILD=$(( CUR_BUILD + 1 ))
+          TAG="v${NEW_NAME}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Il tag $TAG esiste già."
+            exit 1
+          fi
+
+          echo "tag=$TAG"                       >> "$GITHUB_OUTPUT"
+          echo "versione=${NEW_NAME}+${NEW_BUILD}" >> "$GITHUB_OUTPUT"
+          echo "==> Release: ${CURRENT} → ${NEW_NAME}+${NEW_BUILD}  (tag ${TAG})"
+
+      - name: Applica il bump a pubspec.yaml
+        run: |
+          sed -i "s/^version: .*/version: ${{ steps.versione.outputs.versione }}/" pubspec.yaml
+          grep '^version:' pubspec.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # build.gradle.kts fissa source/target compatibility a 17.
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Pinnata: una release deve essere ricostruibile identica, non
+          # dipendere da quale stable era in giro quel giorno.
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Dipendenze
+        run: flutter pub get
+
+      # Le stesse verifiche che si fanno prima di rilasciare a mano: se il
+      # codice non passa, meglio scoprirlo prima di pubblicare l'APK.
+      - name: Analisi statica
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Ricostruisci il keystore dai secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          # Fuori dal working tree: così non finisce mai in un commit
+          # nemmeno per sbaglio.
+          KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+
+          # Percorso assoluto: in signingConfigs file() risolve rispetto ad
+          # android/app, un percorso relativo qui punterebbe altrove.
+          cat > android/key.properties <<EOF
+          storeFile=$KEYSTORE_PATH
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build APK release
+        run: flutter build apk --release
+
+      # Il nome del file diventa il nome dell'asset, ed è quello che compare
+      # nell'URL /releases/latest/download/. Tenerlo fisso = link permanente.
+      - name: Prepara l'asset
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk BudgetApp.apk
+          ls -lh BudgetApp.apk
+
+      # La firma non si dà per scontata: se per qualsiasi motivo fosse uscita
+      # quella di debug, il controllo lo intercetta prima della pubblicazione.
+      - name: Verifica la firma dell'APK
+        run: |
+          set -e
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner non trovato: impossibile verificare la firma."
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs BudgetApp.apk > firma.txt
+          cat firma.txt
+          if grep -qi "CN=Android Debug" firma.txt; then
+            echo "::error::L'APK risulta firmato con la chiave di debug. Release annullata."
+            exit 1
+          fi
+
+      - name: Rimuovi key.properties prima del commit
+        run: rm -f android/key.properties
+
+      - name: Committa il bump e crea il tag
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Solo il bump: 'commit -a' si porterebbe dietro anche i file che il
+          # tool tocca da solo durante la build (pubspec.lock, e analysis_options.yaml
+          # che flutter riscrive per aggiungere le exclude). Il commit di
+          # release deve contenere la versione e nient'altro.
+          git add pubspec.yaml
+          git commit -qm "${{ steps.versione.outputs.tag }}"
+          git tag "${{ steps.versione.outputs.tag }}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git push origin "${{ steps.versione.outputs.tag }}"
+
+      - name: Pubblica la release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.versione.outputs.tag }}" BudgetApp.apk \
+            --title "BudgetApp ${{ steps.versione.outputs.tag }}" \
+            --generate-notes
+
+      - name: Riepilogo
+        run: |
+          {
+            echo "### BudgetApp ${{ steps.versione.outputs.tag }} pubblicata"
+            echo ""
+            echo "Link di download sempre aggiornato:"
+            echo ""
+            echo "\`${{ github.server_url }}/${{ github.repository }}/releases/latest/download/BudgetApp.apk\`"
+          } >> "$GITHUB_STEP_SUMMARY"

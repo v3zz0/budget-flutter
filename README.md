@@ -164,6 +164,42 @@ più veloce e ~40 MB di spazio risparmiato sul telefono.
 flutter install
 ```
 
+## 🚀 Release automatica su GitHub
+
+Oltre a `./pusherapk.sh` (che builda in locale con il keystore sul tuo PC),
+il repo ha un workflow che fa la stessa cosa da GitHub:
+**Actions → Release APK → Run workflow**.
+
+Bumpa la versione in `pubspec.yaml`, builda, verifica la firma, crea il tag e
+pubblica l'APK come asset della release. Il campo *versione* è opzionale:
+lasciandolo vuoto incrementa la patch (`1.0.9` → `1.0.10`), altrimenti puoi
+scrivere una versione esplicita (`1.1.0`).
+
+Il link di download resta sempre lo stesso, quindi puoi salvarlo sul telefono:
+
+```
+https://github.com/v3zz0/budget-flutter/releases/latest/download/BudgetApp.apk
+```
+
+### Configurazione (una volta sola)
+
+Il workflow firma con la **tua** chiave, che non sta nel repo ma nei Secrets.
+In *Settings → Secrets and variables → Actions* aggiungi:
+
+| Secret | Valore |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 ~/budgetapp-release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | la password del keystore |
+| `ANDROID_KEY_ALIAS` | l'alias della chiave (es. `budgetapp`) |
+| `ANDROID_KEY_PASSWORD` | la password della chiave |
+
+> **Deve essere lo stesso keystore che hai già usato per le release
+> precedenti.** Un APK firmato con una chiave diversa non si installa come
+> aggiornamento: Android lo rifiuta e va disinstallata prima l'app, perdendo i
+> dati locali. Se i secret mancano il workflow si ferma subito invece di
+> ripiegare sulla chiave di debug, e prima di pubblicare ricontrolla comunque
+> con `apksigner` che la firma non sia quella di debug.
+
 ### Comandi utili
 
 ```bash
