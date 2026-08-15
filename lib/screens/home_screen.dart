@@ -143,6 +143,16 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!dashboard.isLoading && dashboard.errore == null)
               _CardRiepilogo(dashboard: dashboard, wallet: wallet),
 
+            // Proiezione: compare solo se il ritmo di spesa porta a sforare.
+            // Nei primi giorni resta nascosta, perché con pochi giorni di dati
+            // l'estrapolazione dice qualsiasi cosa.
+            if (!dashboard.isLoading &&
+                dashboard.errore == null &&
+                dashboard.proiezionePreoccupante) ...[
+              const SizedBox(height: 12),
+              _BannerProiezione(dashboard: dashboard),
+            ],
+
             const SizedBox(height: 16),
 
             // Loading
@@ -209,6 +219,64 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Avviso di rotta: di questo passo il mese chiude sopra il budget.
+/// È il segnale che ai `consigli` di fine mese manca per definizione, visto
+/// che quelli arrivano quando il mese è già chiuso.
+class _BannerProiezione extends StatelessWidget {
+  final DashboardProvider dashboard;
+
+  const _BannerProiezione({required this.dashboard});
+
+  @override
+  Widget build(BuildContext context) {
+    final proiezione = dashboard.proiezioneFineMese;
+    if (proiezione == null) return const SizedBox.shrink();
+    final eccesso = proiezione - dashboard.totaleBudget;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAB308).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFEAB308).withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.trending_up, color: Color(0xFFEAB308), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Di questo passo sfori',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Chiuderesti il mese a €${proiezione.toStringAsFixed(0)}, '
+                  'cioè €${eccesso.toStringAsFixed(0)} sopra il budget.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

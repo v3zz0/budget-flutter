@@ -3,6 +3,7 @@ import '../models/category.dart';
 import '../services/dashboard_service.dart';
 import '../services/api_client.dart';
 import '../services/notification_service.dart';
+import '../services/soglia_service.dart';
 
 class DashboardProvider extends ChangeNotifier {
   final DashboardService _service = DashboardService();
@@ -61,14 +62,47 @@ class DashboardProvider extends ChangeNotifier {
 
     try {
       _categorie = await _service.loadCategories(token, walletDocumentId);
-      // Pianifica notifiche per le ricorrenti con l'orario scelto
-      NotificationService.scheduleAll(_categorie, orario: orarioNotifiche);
+      // Pianifica notifiche per le ricorrenti con l'orario scelto.
+      // L'avviso di soglia va DOPO, non in parallelo: scheduleAll comincia con
+      // un cancelAll() che spazzerebbe via l'avviso appena mostrato. Restano
+      // entrambi fuori dall'await di loadCategorie per non rallentare la
+      // dashboard, ma in quest'ordine.
+      NotificationService.scheduleAll(_categorie, orario: orarioNotifiche)
+          .then((_) => _avvisaSoglieSuperate());
     } catch (e) {
       errore = erroreLeggibile(e);
     } finally {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Notifica le categorie appena finite oltre soglia. Il servizio si occupa
+  /// da sé di non ripetere l'avviso per la stessa categoria nello stesso mese.
+  Future<void> _avvisaSoglieSuperate() async {
+    final nuove = await SogliaService.nuoveDaSegnalare(_categorie);
+    for (final c in nuove) {
+      await NotificationService.avvisoSoglia(
+        c.categoria.nome,
+        c.speso,
+        c.budget,
+      );
+    }
+  }
+
+  /// Quanto si chiuderebbe il mese tenendo questo ritmo di spesa.
+  /// null quando non ha senso mostrarla: mese passato/futuro o nessuna spesa.
+  double? get proiezioneFineMese => SogliaService.proiezioneFineMese(
+        speso: totaleSpesi,
+        mese: _meseScelto,
+      );
+
+  /// La proiezione vale la pena mostrarla solo se sfora il budget e i giorni
+  /// trascorsi sono abbastanza da renderla credibile.
+  bool get proiezionePreoccupante {
+    final p = proiezioneFineMese;
+    if (p == null || totaleBudget <= 0) return false;
+    return DateTime.now().day >= 7 && p > totaleBudget;
   }
 
   // Navigazione al mese precedente — equivalente del click su "<" in Vue

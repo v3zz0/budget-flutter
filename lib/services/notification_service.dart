@@ -97,6 +97,42 @@ class NotificationService {
     );
   }
 
+  /// Avviso immediato di superamento soglia su una categoria.
+  ///
+  /// È immediata e non pianificata: il momento in cui serve è quello in cui la
+  /// spesa viene registrata, non un orario prestabilito.
+  static Future<void> avvisoSoglia(
+    String categoria,
+    double speso,
+    double budget,
+  ) async {
+    if (_disabilitato) return;
+    await init();
+
+    final percentuale = budget <= 0 ? 0 : (speso / budget * 100).round();
+    final sforata = speso > budget;
+
+    await _plugin.show(
+      // ID derivato dal nome: un secondo avviso sulla stessa categoria
+      // sostituisce il precedente invece di impilarsi.
+      'soglia_$categoria'.hashCode,
+      sforata ? 'Budget superato: $categoria' : 'Attenzione a $categoria',
+      sforata
+          ? 'Hai speso ${speso.toStringAsFixed(2)}€ sui ${budget.toStringAsFixed(2)}€ di budget.'
+          : 'Sei al $percentuale% del budget di $categoria (${speso.toStringAsFixed(2)}€ su ${budget.toStringAsFixed(2)}€).',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'budget_soglie',
+          'Soglie di budget',
+          channelDescription:
+              'Avvisi quando una categoria si avvicina al suo budget',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  }
+
   /// Notifica immediata di prova: se non arriva, il problema sono i permessi
   /// (Android 13+ / batteria), non la pianificazione.
   /// Ritorna false se il permesso notifiche è negato.

@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../services/ai_settings_service.dart';
 import '../services/api_client.dart';
 import '../services/notification_service.dart';
+import '../services/soglia_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
 import '../theme.dart';
@@ -877,7 +878,112 @@ class _PaginaNotifiche extends StatelessWidget {
       titolo: 'Notifiche',
       child: SingleChildScrollView(
         padding: EdgeInsets.all(24),
-        child: _CardNotifiche(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CardNotifiche(),
+            SizedBox(height: 24),
+            _CardSoglia(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Soglia oltre la quale una categoria fa scattare l'avviso.
+/// È una preferenza del dispositivo (SharedPreferences), non del profilo:
+/// riguarda solo le notifiche locali di questo telefono.
+class _CardSoglia extends StatefulWidget {
+  const _CardSoglia();
+
+  @override
+  State<_CardSoglia> createState() => _CardSogliaState();
+}
+
+class _CardSogliaState extends State<_CardSoglia> {
+  double _soglia = SogliaService.sogliaPredefinita;
+  bool _caricando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    SogliaService.soglia().then((v) {
+      if (mounted) setState(() { _soglia = v; _caricando = false; });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Avviso di budget',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Ti avvisa quando una categoria raggiunge questa percentuale del '
+            'suo budget. Una volta sola al mese per categoria.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          if (_caricando)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accent,
+                  ),
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: _soglia,
+                    // Sotto il 50% avviserebbe a metà mese ogni volta; sopra il
+                    // 100% non sarebbe più un preavviso ma un referto.
+                    min: 0.5,
+                    max: 1.0,
+                    divisions: 10,
+                    activeColor: AppColors.accent,
+                    label: '${(_soglia * 100).round()}%',
+                    onChanged: (v) => setState(() => _soglia = v),
+                    onChangeEnd: SogliaService.salvaSoglia,
+                  ),
+                ),
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    '${(_soglia * 100).round()}%',
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }
