@@ -103,6 +103,17 @@ class _StartupScreenState extends State<_StartupScreen> {
 
   Future<void> _controlla() async {
     final auth = context.read<AuthProvider>();
+
+    // Unico punto in cui una sessione caduta lato server porta al login:
+    // prima si azzera lo stato (token + isLoggedIn), poi si naviga. L'ordine
+    // conta — navigare lasciando il token in memoria è quello che permetteva
+    // alla schermata di login di rientrare subito e ricominciare da capo.
+    ApiClient.onSessioneScaduta = () async {
+      await auth.sessioneScaduta();
+      ApiClient.navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil('/login', (_) => false);
+    };
+
     await auth.init(); // legge flag biometria + eventuale JWT salvato
 
     if (!mounted) return;
