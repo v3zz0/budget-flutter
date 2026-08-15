@@ -11,8 +11,10 @@ import '../providers/transazione_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../services/api_client.dart';
 import '../models/category.dart';
+import '../models/transaction.dart';
 import '../theme.dart';
 import 'consigli_screen.dart';
+import 'transazioni_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -181,6 +183,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         _espanse.add(cat.documentId);
                       }
                     });
+                  },
+                  onModificaTransazione: (t) async {
+                    // La schermata si occupa già di ricaricare la dashboard
+                    // prima di tornare indietro.
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TransazioniScreen(daModificare: t),
+                      ),
+                    );
                   },
                   onDeleteTransazione: (documentId) async {
                     final token = requireToken(context);
@@ -366,12 +377,14 @@ class _CardCategoria extends StatelessWidget {
   final bool isEspansa;
   final VoidCallback onTap;
   final void Function(String)? onDeleteTransazione;
+  final void Function(Transaction)? onModificaTransazione;
 
   const _CardCategoria({
     required this.categoria,
     required this.isEspansa,
     required this.onTap,
     this.onDeleteTransazione,
+    this.onModificaTransazione,
   });
 
   @override
@@ -470,7 +483,13 @@ class _CardCategoria extends StatelessWidget {
               )
             else
               ...categoria.transazionis.map(
-                (t) => Padding(
+                (t) => InkWell(
+                  // Tap sulla riga = modifica. Il cestino ha il suo GestureDetector
+                  // più sotto, quindi vince lui sul proprio tocco.
+                  onTap: onModificaTransazione == null
+                      ? null
+                      : () => onModificaTransazione!(t),
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
@@ -527,6 +546,7 @@ class _CardCategoria extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
           ],

@@ -14,7 +14,14 @@ import '../models/transaction.dart';
 
 class TransazioniScreen extends StatefulWidget {
   final VoidCallback? onSalvato;
-  const TransazioniScreen({super.key, this.onSalvato});
+
+  /// Se valorizzata la schermata lavora in modifica invece che in creazione:
+  /// stesso form, stessi campi, cambia solo dove finisce il salvataggio.
+  /// In modifica lo schermo viene aperto con Navigator.push (non come tab),
+  /// quindi al termine si fa pop e si torna da dove si era arrivati.
+  final Transaction? daModificare;
+
+  const TransazioniScreen({super.key, this.onSalvato, this.daModificare});
 
   @override
   State<TransazioniScreen> createState() => _TransazioniScreenState();
@@ -31,6 +38,23 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
   bool _contanti = false;
   bool _scansionando = false;
   String? _ultimoWalletCaricato;
+
+  bool get _inModifica => widget.daModificare != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.daModificare;
+    if (t == null) return;
+    // La categoria non si può risolvere qui: è un oggetto della lista caricata
+    // dal DashboardProvider, che a questo punto potrebbe non essere pronta.
+    // Ci pensa _risolviCategoriaDaModificare() al primo frame utile.
+    _importoController.text = t.importo.toStringAsFixed(2);
+    _descrizioneController.text = t.descrizione;
+    _dataSelezionata = t.data;
+    _ricorrente = t.transazioneRicorrente;
+    _contanti = t.contanti;
+  }
 
   // Foto dello scontrino -> importo e negozio precompilati. Il salvataggio
   // resta manuale: qui riempiamo solo i campi, li controlli tu.
@@ -91,7 +115,25 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
         walletId,
         orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
       );
-      setState(() => _categoriaSelezionata = null);
+      // In modifica la categoria arriva dalla transazione, non va azzerata:
+      // il cambio wallet qui non capita comunque, perché lo schermo è aperto
+      // come route sopra la dashboard.
+      if (!_inModifica) setState(() => _categoriaSelezionata = null);
+    }
+    _risolviCategoriaDaModificare();
+  }
+
+  /// Aggancia l'oggetto Category corrispondente alla transazione in modifica,
+  /// appena la lista delle categorie è disponibile.
+  void _risolviCategoriaDaModificare() {
+    final t = widget.daModificare;
+    if (t == null || _categoriaSelezionata != null) return;
+
+    for (final c in context.read<DashboardProvider>().categorie) {
+      if (c.documentId == t.categoriaDocumentId) {
+        setState(() => _categoriaSelezionata = c);
+        return;
+      }
     }
   }
 
@@ -119,6 +161,15 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
+      // Come tab non serve (la nav in basso basta); come route sì, altrimenti
+      // si esce solo col gesto di sistema.
+      appBar: _inModifica
+          ? AppBar(
+              backgroundColor: AppColors.card,
+              foregroundColor: AppColors.textPrimary,
+              title: const Text('Modifica transazione'),
+            )
+          : null,
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.accent,
@@ -140,9 +191,9 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header stile design
-              const Text(
-                'NUOVA',
-                style: TextStyle(
+              Text(
+                _inModifica ? 'MODIFICA' : 'NUOVA',
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
@@ -549,8 +600,9 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
 
                             final token = requireToken(context);
                             if (token == null) return;
+                            final daModificare = widget.daModificare;
                             final transazione = Transaction(
-                              documentId: '',
+                              documentId: daModificare?.documentId ?? '',
                               importo: importoVal,
                               descrizione: _descrizioneController.text.trim(),
                               data: _dataSelezionata,
@@ -560,17 +612,22 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                                   _categoriaSelezionata!.documentId,
                             );
 
-                            final successo = await provider.salva(
-                              token,
-                              transazione,
-                            );
+                            final successo = daModificare != null
+                                ? await provider.aggiorna(
+                                    token,
+                                    daModificare.documentId,
+                                    transazione,
+                                  )
+                                : await provider.salva(token, transazione);
 
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     successo
-                                        ? 'Transazione salvata!'
+                                        ? (daModificare != null
+                                            ? 'Transazione aggiornata!'
+                                            : 'Transazione salvata!')
                                         : 'Errore nel salvataggio',
                                   ),
                                   backgroundColor: successo
@@ -579,6 +636,28 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                                 ),
                               );
                             }
+
+                            // In modifica si torna indietro: la dashboard va
+                            // ricaricata prima del pop, così chi ci ritrova
+                            // sopra vede subito il nuovo importo.
+                            if (successo && daModificare != null) {
+                              if (!context.mounted) return;
+                              await context
+                                  .read<DashboardProvider>()
+                                  .loadCategorie(
+                                    token,
+                                    context
+                                        .read<WalletProvider>()
+                                        .selectedWallet!
+                                        .documentId,
+                                    orarioNotifiche: context
+                                        .read<UserSettingsProvider>()
+                                        .orarioNotifiche,
+                                  );
+                              if (context.mounted) Navigator.of(context).pop(true);
+                              return;
+                            }
+
                             if (successo && context.mounted) {
                               _importoController.text = '0';
                               _descrizioneController.clear();
@@ -618,9 +697,11 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text(
-                            'Salva Transazione',
-                            style: TextStyle(
+                        : Text(
+                            _inModifica
+                                ? 'Aggiorna Transazione'
+                                : 'Salva Transazione',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),

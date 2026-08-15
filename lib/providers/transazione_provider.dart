@@ -33,6 +33,28 @@ class TransazioneProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> aggiorna(
+    String token,
+    String documentId,
+    Transaction transazione,
+  ) async {
+    isLoading = true;
+    errore = null;
+    notifyListeners();
+
+    try {
+      await _service.aggiornaTransazione(token, documentId, transazione);
+      isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      errore = erroreLeggibile(e);
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> elimina(String token, String documentId) async {
     // Tap multiplo sullo stesso cestino: ignora le richieste successive
     if (_inEliminazione.contains(documentId)) return false;

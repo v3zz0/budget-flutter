@@ -12,6 +12,7 @@ import '../services/notification_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
 import '../theme.dart';
+import 'ricorrenti_screen.dart';
 
 // Impostazioni in modalità lista: una voce per area, ognuna apre la sua pagina.
 // Prima era un unico scroll con dentro tutto; aggiungendo opzioni diventava
@@ -69,6 +70,12 @@ class ImpostazioniScreen extends StatelessWidget {
             titolo: 'Categorie di spesa',
             sottotitolo: 'Aggiungi, rinomina o elimina categorie',
             apri: () => const _PaginaCategorie(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.repeat,
+            titolo: 'Transazioni ricorrenti',
+            sottotitolo: 'Cosa viene registrato in automatico ogni mese',
+            apri: () => const RicorrentiScreen(),
           ),
           _VoceImpostazioni(
             icona: Icons.notifications_outlined,
