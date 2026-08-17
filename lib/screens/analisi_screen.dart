@@ -451,7 +451,12 @@ class _MesePickerState extends State<_MesePicker> {
         ),
         ElevatedButton(
           onPressed: () => Navigator.of(context).pop(DateTime(_anno, _mese)),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+          // Senza foregroundColor il testo prende onPrimary del tema, che è
+          // rimasto al viola scuro di default: scritta illeggibile sul blu.
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+          ),
           child: const Text('Conferma'),
         ),
       ],
