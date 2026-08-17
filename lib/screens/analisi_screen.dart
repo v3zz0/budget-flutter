@@ -283,7 +283,10 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
                 const SizedBox(height: 16),
                 ReportSforamentiWidget(sforamenti: report.sforamenti),
                 const SizedBox(height: 8),
-                ReportMancantiWidget(mancanti: report.mancanti),
+                ReportMancantiWidget(
+                  mancanti: report.mancanti,
+                  categorie: report.sforamenti,
+                ),
               ],
             ],
           ),

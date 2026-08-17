@@ -51,6 +51,16 @@ class AnalisiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Toglie dai mancanti una transazione appena registrata nell'app.
+  /// Il report resta quello che è: rifare l'analisi per aggiornare una lista
+  /// che sappiamo già come cambia sarebbe due minuti buttati.
+  void rimuoviMancante(TransazioneMancante m) {
+    final r = _report;
+    if (r == null) return;
+    r.mancanti.remove(m);
+    notifyListeners();
+  }
+
   Future<void> analizza({required String token, required String walletId}) async {
     if (!pronto) {
       _errore = 'Seleziona almeno un documento e il mese prima di analizzare';
