@@ -67,6 +67,9 @@ class BudgetApp extends StatelessWidget {
         colorScheme: ColorScheme.dark(
           surface: AppColors.bg,
           primary: AppColors.accent,
+          // Il testo sopra il primary: senza questo resta il viola scuro di
+          // default di ColorScheme.dark e i bottoni blu diventano illeggibili.
+          onPrimary: Colors.white,
           error: AppColors.error,
         ),
       ),
