@@ -57,14 +57,42 @@ class AnalisiService {
     final response = await http.Response.fromStream(streamed);
 
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception(
-        'Errore analisi estratto conto (${response.statusCode}): ${response.body}',
-      );
+      throw Exception(_messaggioErrore(response));
     }
 
     final body = jsonDecode(response.body);
     // Strapi a volte wrappa in { data, meta }: gestiamo entrambi i casi.
     final json = body is Map && body['data'] != null ? body['data'] : body;
     return ReportAnalisi.fromJson(json);
+  }
+
+  /// Messaggio leggibile, senza incollare in pagina il corpo della risposta.
+  /// I 5xx del reverse proxy arrivano come pagina HTML: mostrarla all'utente
+  /// non lo aiuta a capire cosa fare.
+  String _messaggioErrore(http.Response r) {
+    switch (r.statusCode) {
+      case 502:
+      case 503:
+      case 504:
+        return 'L\'analisi ha superato il tempo massimo e il server ha chiuso '
+            'la connessione. Riprova, oppure carica un documento alla volta.';
+      case 413:
+        return 'I documenti sono troppo grandi per il server.';
+      case 401:
+        return 'Sessione scaduta. Effettua nuovamente il login.';
+      case 403:
+        return 'Il tuo utente non è autorizzato ad analizzare gli estratti conto.';
+      case 404:
+        return 'Portafoglio non trovato.';
+    }
+
+    // Strapi risponde { error: { message } }: quello vale la pena mostrarlo.
+    try {
+      final m = jsonDecode(r.body)['error']?['message'];
+      if (m is String && m.isNotEmpty) return m;
+    } catch (_) {
+      // Corpo non JSON (di solito una pagina di errore del proxy): si ignora.
+    }
+    return 'Errore del server durante l\'analisi (${r.statusCode}).';
   }
 }

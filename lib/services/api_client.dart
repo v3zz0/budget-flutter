@@ -33,6 +33,13 @@ String erroreLeggibile(Object e) {
   }
   if (e is TimeoutException) return 'Il server non risponde. Controlla la connessione.';
   if (e is SocketException) return 'Nessuna connessione a internet.';
+  // Succede sulle richieste lunghe: il telefono va in standby o cambia rete e
+  // il socket muore. Senza questo caso finiva a schermo il testo grezzo
+  // "Client Software caused connection abort, uri=...".
+  if (e is http.ClientException) {
+    return 'Connessione interrotta durante la richiesta. '
+        'Se stavi analizzando un estratto conto, tieni l\'app aperta e riprova.';
+  }
   if (e is HttpException) return 'Errore di comunicazione con il server.';
   if (e is FormatException) return 'Risposta del server non valida.';
 
