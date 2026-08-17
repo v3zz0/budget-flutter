@@ -18,8 +18,12 @@ class AnalisiDoc {
 // Il backend unisce il testo di tutti i documenti e produce un unico report.
 // L'analisi prende ~30-60s (o più con più file) perché gira su Ollama.
 class AnalisiService {
-  // Timeout esteso: con più documenti l'LLM può metterci un po'.
-  static const Duration _timeoutLungo = Duration(minutes: 5);
+  // Deve stare SOPRA il tetto del server (AI_BUDGET_MS, 2 minuti) e sotto
+  // quello del reverse proxy: chi molla per primo decide cosa vede l'utente, e
+  // deve essere sempre il server, che sa consegnare un report parziale.
+  // Aspettare più a lungo del server significa solo restare a fissare uno
+  // spinner per una risposta già arrivata o già persa.
+  static const Duration _timeoutLungo = Duration(minutes: 3);
 
   Future<ReportAnalisi> analizza({
     required String token,
