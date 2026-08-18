@@ -37,11 +37,11 @@ class ReportMancantiWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF10B981), width: 1),
+          border: Border.all(color: AppColors.positivo, width: 1),
         ),
         child: Row(
           children: const [
-            Icon(Icons.check_circle, color: Color(0xFF10B981), size: 20),
+            Icon(Icons.check_circle, color: AppColors.positivo, size: 20),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -62,7 +62,7 @@ class ReportMancantiWidget extends StatelessWidget {
           child: Row(
             children: [
               const Icon(Icons.warning_amber_rounded,
-                  color: Color(0xFFEAB308), size: 18),
+                  color: AppColors.avviso, size: 18),
               const SizedBox(width: 6),
               Text(
                 'Transazioni mancanti (${mancanti.length})',

@@ -134,7 +134,7 @@ class _StartupScreenState extends State<_StartupScreen> {
   Widget build(BuildContext context) {
     // Mostra uno spinner mentre controlla il JWT
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+      body: Center(child: CircularProgressIndicator(color: AppColors.positivo)),
     );
   }
 }

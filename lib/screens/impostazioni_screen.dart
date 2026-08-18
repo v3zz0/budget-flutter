@@ -286,7 +286,7 @@ class _PaginaProfiloState extends State<_PaginaProfilo> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(messaggio),
-        backgroundColor: ok ? AppColors.accent : AppColors.error,
+        backgroundColor: ok ? AppColors.positivo : AppColors.error,
       ),
     );
   }
@@ -546,8 +546,99 @@ class _BottonePieno extends StatelessWidget {
 
 // ───────────────────────── Portafogli e budget ─────────────────────────
 
-class _PaginaPortafogli extends StatelessWidget {
+class _PaginaPortafogli extends StatefulWidget {
   const _PaginaPortafogli();
+
+  @override
+  State<_PaginaPortafogli> createState() => _PaginaPortafogliState();
+}
+
+class _PaginaPortafogliState extends State<_PaginaPortafogli> {
+  /// Ricarica la lista dal server. Serve dopo creazione ed eliminazione:
+  /// WalletProvider riallinea da sé il portafoglio selezionato, e se quello
+  /// scelto non c'è più ripiega sul primo.
+  Future<void> _ricarica(String token) async {
+    await context.read<WalletProvider>().loadWallets(
+      token,
+      userId: context.read<UserSettingsProvider>().userId,
+    );
+  }
+
+  Future<void> _nuovo() async {
+    final dati = await showDialog<(String, double)>(
+      context: context,
+      builder: (_) => const _DialogNuovoWallet(),
+    );
+    if (dati == null || !mounted) return;
+
+    final token = requireToken(context);
+    if (token == null) return;
+
+    final ok = await context
+        .read<ImpostazioniProvider>()
+        .createWallet(token, dati.$1, dati.$2);
+    if (!mounted) return;
+    if (ok) await _ricarica(token);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Portafoglio creato' : 'Errore nella creazione'),
+        backgroundColor: ok ? AppColors.positivo : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _elimina(Wallet wallet) async {
+    // Un portafoglio si porta dietro categorie, transazioni e storico del
+    // salvadanaio: la conferma nomina il portafoglio, così un tap distratto
+    // non basta.
+    final conferma = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text(
+          'Eliminare il portafoglio?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Stai per eliminare "${wallet.nome}" con tutte le sue categorie, '
+          'transazioni e lo storico del salvadanaio. L\'operazione non è '
+          'reversibile.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Annulla',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Elimina', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (conferma != true || !mounted) return;
+
+    final token = requireToken(context);
+    if (token == null) return;
+
+    final ok = await context
+        .read<ImpostazioniProvider>()
+        .deleteWallet(token, wallet.documentId);
+    if (!mounted) return;
+    if (ok) await _ricarica(token);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Portafoglio eliminato' : 'Errore nell\'eliminazione'),
+        backgroundColor: ok ? AppColors.positivo : AppColors.error,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -569,13 +660,124 @@ class _PaginaPortafogli extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'Nessun portafoglio disponibile.',
+                'Nessun portafoglio: creane uno per cominciare.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
+
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: _nuovo,
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('Nuovo portafoglio'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: const BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+
+          // L'eliminazione sta in fondo e staccata dal resto: è distruttiva e
+          // non deve trovarsi accanto ai campi che si toccano tutti i giorni.
+          if (selezionato != null && walletProvider.wallets.length > 1) ...[
+            const SizedBox(height: 32),
+            TextButton.icon(
+              onPressed: () => _elimina(selezionato),
+              icon: const Icon(Icons.delete_outline, size: 20),
+              label: Text('Elimina "${selezionato.nome}"'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.errorText,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Nome + budget del nuovo portafoglio. Ritorna null se si annulla.
+class _DialogNuovoWallet extends StatefulWidget {
+  const _DialogNuovoWallet();
+
+  @override
+  State<_DialogNuovoWallet> createState() => _DialogNuovoWalletState();
+}
+
+class _DialogNuovoWalletState extends State<_DialogNuovoWallet> {
+  final _nome = TextEditingController();
+  final _budget = TextEditingController(text: '0');
+
+  @override
+  void initState() {
+    super.initState();
+    // Riabilita "Crea" appena si scrive qualcosa. `_CampoTesto` non espone
+    // onChanged, e il listener sul controller costa meno che parametrizzarlo.
+    _nome.addListener(_ridisegna);
+  }
+
+  void _ridisegna() => setState(() {});
+
+  @override
+  void dispose() {
+    _nome.removeListener(_ridisegna);
+    _nome.dispose();
+    _budget.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nomeValido = _nome.text.trim().isNotEmpty;
+
+    return AlertDialog(
+      backgroundColor: AppColors.card,
+      title: const Text(
+        'Nuovo portafoglio',
+        style: TextStyle(color: AppColors.textPrimary),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _CampoTesto(
+            etichetta: 'Nome',
+            controller: _nome,
+            icona: Icons.account_balance_wallet_outlined,
+          ),
+          const SizedBox(height: 12),
+          _CampoTesto(
+            etichetta: 'Budget mensile (€)',
+            controller: _budget,
+            icona: Icons.euro,
+            tipo: const TextInputType.numberWithOptions(decimal: true),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Annulla',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          // Senza nome non si crea: un portafoglio "" non è distinguibile
+          // dagli altri nella barra in alto.
+          onPressed: nomeValido
+              ? () => Navigator.pop(context, (
+                    _nome.text.trim(),
+                    double.tryParse(_budget.text.replaceAll(',', '.')) ?? 0,
+                  ))
+              : null,
+          child: const Text('Crea'),
+        ),
+      ],
     );
   }
 }
@@ -1754,6 +1956,7 @@ class _RigaCategoria extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Modifica categoria',
             icon: const Icon(
               Icons.edit_outlined,
               size: 18,
@@ -2034,7 +2237,7 @@ class _CardNotifiche extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(ok ? 'Orario aggiornato' : 'Errore aggiornamento'),
-                            backgroundColor: ok ? AppColors.accent : AppColors.error,
+                            backgroundColor: ok ? AppColors.positivo : AppColors.error,
                           ),
                         );
                       }
@@ -2081,7 +2284,7 @@ class _CardNotifiche extends StatelessWidget {
                   content: Text(ok
                       ? 'Notifica inviata · $n ricorrenti pianificate'
                       : 'Permesso notifiche negato: attivalo dalle impostazioni Android'),
-                  backgroundColor: ok ? AppColors.accent : AppColors.error,
+                  backgroundColor: ok ? AppColors.positivo : AppColors.error,
                 ),
               );
             },

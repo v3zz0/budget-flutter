@@ -47,6 +47,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) await context.read<ConsigliProvider>().carica(token);
   }
 
+  /// Freccia < o > del navigatore mese. Ricarica, perché ora è il server a
+  /// filtrare le transazioni per mese.
+  void _cambiaMese(int passo) {
+    final token = requireToken(context);
+    final walletId = context.read<WalletProvider>().selectedWallet?.documentId;
+    if (token == null || walletId == null) return;
+    context.read<DashboardProvider>().cambiaMese(
+      passo,
+      token,
+      walletId,
+      orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
+    );
+  }
+
   // Ricarica solo se il wallet selezionato è cambiato davvero
   void _caricaDatiSeNecessario() {
     final walletId = context.read<WalletProvider>().selectedWallet?.documentId;
@@ -130,7 +144,13 @@ class _HomeScreenState extends State<HomeScreen> {
             // Navigatore mese — equivalente di < Aprile 2026 > in Vue
             Row(
               children: [
-                Expanded(child: _NavigatoreMese(dashboard: dashboard, nomeMese: _nomeMese)),
+                Expanded(
+                  child: _NavigatoreMese(
+                    dashboard: dashboard,
+                    nomeMese: _nomeMese,
+                    onCambiaMese: _cambiaMese,
+                  ),
+                ),
                 const _CampanellaConsigli(),
                 IconButton(
                   icon: const Icon(Icons.download_outlined, color: AppColors.textPrimary),
@@ -243,16 +263,16 @@ class _BannerProiezione extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAB308).withValues(alpha: 0.12),
+        color: AppColors.avviso.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFEAB308).withValues(alpha: 0.4),
+          color: AppColors.avviso.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.trending_up, color: Color(0xFFEAB308), size: 20),
+          const Icon(Icons.trending_up, color: AppColors.avviso, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -340,17 +360,27 @@ class _CampanellaConsigli extends StatelessWidget {
 class _NavigatoreMese extends StatelessWidget {
   final DashboardProvider dashboard;
   final String Function(int) nomeMese;
+  final void Function(int passo) onCambiaMese;
 
-  const _NavigatoreMese({required this.dashboard, required this.nomeMese});
+  const _NavigatoreMese({
+    required this.dashboard,
+    required this.nomeMese,
+    required this.onCambiaMese,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Durante il caricamento le frecce si spengono: le transazioni del mese ora
+    // arrivano dal server, e due tap rapidi partirebbero in corsa fra loro.
+    final bloccate = dashboard.isLoading;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
           icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: dashboard.mesePrecedente,
+          tooltip: 'Mese precedente',
+          onPressed: bloccate ? null : () => onCambiaMese(-1),
         ),
         Text(
           '${nomeMese(dashboard.meseScelto.month)} ${dashboard.meseScelto.year}',
@@ -362,7 +392,8 @@ class _NavigatoreMese extends StatelessWidget {
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-          onPressed: dashboard.meseSuccessivo,
+          tooltip: 'Mese successivo',
+          onPressed: bloccate ? null : () => onCambiaMese(1),
         ),
       ],
     );

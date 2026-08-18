@@ -42,7 +42,7 @@ class _ConsigliScreenState extends State<ConsigliScreen> {
               ? 'Budget di ${c.categoriaNome} aggiornato a ${c.budgetProposto.toStringAsFixed(0)}€'
               : 'Non sono riuscito ad aggiornare il budget',
         ),
-        backgroundColor: ok ? AppColors.accent : AppColors.error,
+        backgroundColor: ok ? AppColors.positivo : AppColors.error,
       ),
     );
 
@@ -142,7 +142,7 @@ class _CardConsiglio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colore = consiglio.isAlza ? AppColors.error : AppColors.accent;
+    final colore = consiglio.isAlza ? AppColors.error : AppColors.positivo;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -265,7 +265,7 @@ class _Storico extends StatelessWidget {
                 Container(
                   height: massimo > 0 ? (m.speso / massimo * 40).clamp(2, 40) : 2,
                   decoration: BoxDecoration(
-                    color: sopra ? AppColors.error : AppColors.accent,
+                    color: sopra ? AppColors.error : AppColors.positivo,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

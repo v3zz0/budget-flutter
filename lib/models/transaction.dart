@@ -44,12 +44,22 @@ class Transaction {
   }
 
   Map<String, dynamic> toJson() {
+    final giorno = data.toIso8601String().substring(0, 10);
     return {
       'data': {
         'Importo': importo,
         'Descrizione': descrizione,
-        'Data': data.toIso8601String().substring(0, 10),
+        'Data': giorno,
         'TransazioneRicorrente': transazioneRicorrente,
+        // Il giorno di addebito, scritto invece che dedotto. Finora questo
+        // campo non partiva mai: cron e app ripiegavano entrambi su `Data`, e
+        // nel database restava sempre null — un campo dello schema che non
+        // voleva dire niente. Vale `Data` come prima, ma adesso è nel dato.
+        // Su una transazione non ricorrente resta null: non ha un giorno che
+        // torna, e riempirlo darebbe l'idea sbagliata a chi legge il DB.
+        'RicorrenzaTemporale': transazioneRicorrente
+            ? (ricorrenzaTemporale ?? data).toIso8601String().substring(0, 10)
+            : null,
         'Contanti': contanti,
         'categorie': categoriaDocumentId,
       },

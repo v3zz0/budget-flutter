@@ -21,6 +21,28 @@ class ImpostazioniProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> createWallet(String token, String nome, double budget) async {
+    try {
+      await _walletService.createWallet(token, nome, budget);
+      return true;
+    } catch (e) {
+      errore = erroreLeggibile(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteWallet(String token, String documentId) async {
+    try {
+      await _walletService.deleteWallet(token, documentId);
+      return true;
+    } catch (e) {
+      errore = erroreLeggibile(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> updateCategory(String token, String documentId, String nome, double budget, {String? icona}) async {
     try {
       await _categoryService.updateCategory(token, documentId, nome, budget, icona: icona);

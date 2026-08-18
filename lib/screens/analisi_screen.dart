@@ -257,15 +257,15 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEAB308).withValues(alpha: 0.12),
+                      color: AppColors.avviso.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                          color: const Color(0xFFEAB308), width: 1),
+                          color: AppColors.avviso, width: 1),
                     ),
                     child: Row(
                       children: [
                         const Icon(Icons.warning_amber_rounded,
-                            color: Color(0xFFEAB308)),
+                            color: AppColors.avviso),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -395,6 +395,7 @@ class _MesePickerState extends State<_MesePicker> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
+                tooltip: 'Anno precedente',
                 icon: const Icon(Icons.chevron_left,
                     color: AppColors.textPrimary),
                 onPressed: () => setState(() => _anno--),
@@ -408,6 +409,7 @@ class _MesePickerState extends State<_MesePicker> {
                 ),
               ),
               IconButton(
+                tooltip: 'Anno successivo',
                 icon: const Icon(Icons.chevron_right,
                     color: AppColors.textPrimary),
                 onPressed: () => setState(() => _anno++),

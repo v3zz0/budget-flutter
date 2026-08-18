@@ -278,6 +278,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     // Bottone occhio per mostrare/nascondere password
                     suffixIcon: IconButton(
+                      // Il tooltip è anche la label per TalkBack: senza,
+                      // l'icona resta muta e non si capisce cosa faccia.
+                      tooltip: _passwordVisibile
+                          ? 'Nascondi password'
+                          : 'Mostra password',
                       icon: Icon(
                         _passwordVisibile
                             ? Icons.visibility_off

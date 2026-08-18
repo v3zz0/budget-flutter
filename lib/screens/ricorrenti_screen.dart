@@ -27,28 +27,26 @@ class RicorrentiScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final walletId = context.watch<WalletProvider>().selectedWallet?.documentId;
-    final categorie = context
-        .watch<DashboardProvider>()
-        .categorie
+    final dashboard = context.watch<DashboardProvider>();
+    final categorie = dashboard.categorie
         .where((c) => walletId == null || c.walletDocumentId == walletId)
         .toList();
 
-    // Si usa `categorie` e non `categorieFiltrate`: un template ricorrente vive
-    // nel mese in cui è stato creato, quindi filtrando per mese corrente
-    // sparirebbe quasi sempre.
+    // I template arrivano dalla loro lista dedicata, non da `categorie`: un
+    // ricorrente vive nel mese in cui è stato creato, e le categorie ora
+    // portano solo le transazioni del mese selezionato.
+    final perId = {for (final c in categorie) c.documentId: c};
     final ricorrenti = <_VoceRicorrente>[];
-    for (final cat in categorie) {
-      for (final t in cat.transazionis) {
-        if (t.transazioneRicorrente) {
-          ricorrenti.add(
-            _VoceRicorrente(
-              transazione: t,
-              categoria: cat,
-              prossima: Ricorrenza.prossimaScadenza(t),
-            ),
-          );
-        }
-      }
+    for (final t in dashboard.ricorrenti) {
+      final cat = perId[t.categoriaDocumentId];
+      if (cat == null) continue; // categoria di un altro portafoglio
+      ricorrenti.add(
+        _VoceRicorrente(
+          transazione: t,
+          categoria: cat,
+          prossima: Ricorrenza.prossimaScadenza(t),
+        ),
+      );
     }
     ricorrenti.sort((a, b) => a.prossima.compareTo(b.prossima));
 

@@ -47,7 +47,7 @@ class _CategoriaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percentuale = cat.budget > 0 ? (cat.speso / cat.budget).clamp(0.0, 1.5) : 0.0;
-    final coloreBarra = cat.sforato ? AppColors.error : const Color(0xFF10B981);
+    final coloreBarra = cat.sforato ? AppColors.error : AppColors.positivo;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

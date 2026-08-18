@@ -13,7 +13,7 @@ class ReportGiudizioWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = NumberFormat.currency(locale: 'it_IT', symbol: '€');
     final sforato = report.totale.rimanente < 0;
-    final colore = sforato ? AppColors.error : const Color(0xFF10B981);
+    final colore = sforato ? AppColors.error : AppColors.positivo;
 
     return Container(
       padding: const EdgeInsets.all(16),

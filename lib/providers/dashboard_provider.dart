@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/category.dart';
+import '../models/transaction.dart';
 import '../services/dashboard_service.dart';
 import '../services/api_client.dart';
 import '../services/notification_service.dart';
@@ -10,6 +11,7 @@ class DashboardProvider extends ChangeNotifier {
   final DashboardService _service = DashboardService();
 
   List<Category> _categorie = [];
+  List<Transaction> _ricorrenti = [];
   bool isLoading = false;
   String? errore;
 
@@ -18,31 +20,20 @@ class DashboardProvider extends ChangeNotifier {
 
   DateTime get meseScelto => _meseScelto;
 
-  // Tutte le categorie caricate (non filtrate per mese)
+  /// Categorie del portafoglio, ognuna con le sole transazioni di [meseScelto].
+  /// Il filtro per mese lo fa il server: cambiare mese richiede un reload.
   List<Category> get categorie => _categorie;
 
-  // Transazioni del mese selezionato per ogni categoria
-  // Equivalente del computed categoriesFiltrate in Vue
-  List<Category> get categorieFiltrate {
-    return _categorie.map((cat) {
-      final transazioniFiltrate = cat.transazionis.where((t) {
-        return t.data.year == _meseScelto.year &&
-               t.data.month == _meseScelto.month;
-      }).toList();
+  /// Alias storico di [categorie]. Il filtro client-side che faceva prima non
+  /// serve più, ma i chiamanti sono tanti e il nome resta leggibile.
+  List<Category> get categorieFiltrate => _categorie;
 
-      return Category(
-        documentId: cat.documentId,
-        nome: cat.nome,
-        budgetCategoria: cat.budgetCategoria,
-        walletDocumentId: cat.walletDocumentId,
-        transazionis: transazioniFiltrate,
-      );
-    }).toList();
-  }
+  /// Template ricorrenti del portafoglio, di qualunque mese.
+  List<Transaction> get ricorrenti => _ricorrenti;
 
   // Totale spesi nel mese — equivalente di totaleSpesi computed in Vue
   double get totaleSpesi {
-    return categorieFiltrate.fold(0, (sum, cat) {
+    return _categorie.fold(0, (sum, cat) {
       final spesiCategoria = cat.transazionis.fold(0.0, (s, t) => s + t.importo);
       return sum + spesiCategoria;
     });
@@ -74,14 +65,21 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _categorie = await _service.loadCategories(token, walletDocumentId);
+      final dati = await _service.loadCategories(
+        token,
+        walletDocumentId,
+        mese: _meseScelto,
+      );
+      _categorie = dati.categorie;
+      _ricorrenti = dati.ricorrenti;
       // Pianifica notifiche per le ricorrenti con l'orario scelto.
       // In sequenza e non in parallelo: scheduleAll disdice gli ID pianificati
       // al giro precedente, e uno di quelli può essere un avviso di soglia
       // appena mostrato. Restano entrambi fuori dall'await di loadCategorie per
       // non rallentare la dashboard, ma in quest'ordine.
       NotificationService.scheduleAll(
-        _categorie,
+        _ricorrenti,
+        categorie: _categorie,
         walletId: walletDocumentId,
         orario: orarioNotifiche,
       ).then((_) => _avvisaSoglieSuperate());
@@ -142,16 +140,25 @@ class DashboardProvider extends ChangeNotifier {
     return DateTime.now().day >= 7 && p > totaleBudget;
   }
 
-  // Navigazione al mese precedente — equivalente del click su "<" in Vue
-  void mesePrecedente() {
-    _meseScelto = DateTime(_meseScelto.year, _meseScelto.month - 1);
+  /// Cambia mese e ricarica.
+  ///
+  /// Il reload serve perché le transazioni ora le filtra il server: prima erano
+  /// tutte in memoria e bastava cambiare la variabile. È il prezzo di non
+  /// scaricare più lo storico intero a ogni apertura, e si paga una volta per
+  /// tap sulle frecce invece che a ogni refresh.
+  Future<void> cambiaMese(
+    int passo,
+    String token,
+    String walletDocumentId, {
+    TimeOfDay? orarioNotifiche,
+  }) async {
+    _meseScelto = DateTime(_meseScelto.year, _meseScelto.month + passo);
     notifyListeners();
-  }
-
-  // Navigazione al mese successivo — equivalente del click su ">" in Vue
-  void meseSuccessivo() {
-    _meseScelto = DateTime(_meseScelto.year, _meseScelto.month + 1);
-    notifyListeners();
+    await loadCategorie(
+      token,
+      walletDocumentId,
+      orarioNotifiche: orarioNotifiche,
+    );
   }
 
   void reset() {

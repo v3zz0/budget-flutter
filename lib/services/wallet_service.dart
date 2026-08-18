@@ -28,4 +28,27 @@ class WalletService {
     );
     if (response.statusCode != 200) throw Exception('Errore aggiornamento wallet');
   }
+
+  /// Il proprietario lo mette il server (controller `wallet.create`): qui non
+  /// si manda, e se lo si mandasse verrebbe ignorato.
+  Future<Wallet> createWallet(String token, String nome, double budget) async {
+    final url = Uri.parse('${Config.apiBaseUrl}/api/wallets');
+    final response = await ApiClient.post(
+      url,
+      token: token,
+      body: jsonEncode({'data': {'Nome': nome, 'Budget': budget}}),
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return Wallet.fromJson(jsonDecode(response.body)['data']);
+    }
+    throw Exception('Errore creazione portafoglio');
+  }
+
+  Future<void> deleteWallet(String token, String documentId) async {
+    final url = Uri.parse('${Config.apiBaseUrl}/api/wallets/$documentId');
+    final response = await ApiClient.delete(url, token: token);
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Errore eliminazione portafoglio');
+    }
+  }
 }

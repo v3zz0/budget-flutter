@@ -94,7 +94,7 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(ok ? 'Risparmio salvato' : 'Errore nel salvataggio'),
-        backgroundColor: ok ? AppColors.accent : AppColors.error,
+        backgroundColor: ok ? AppColors.positivo : AppColors.error,
       ),
     );
   }
@@ -140,13 +140,31 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
                 isSaving: provider.isSaving,
                 onSalva: _salvaRisparmio,
               ),
+
+              // Quanto è avanzato il mese scorso, se è avanzato qualcosa.
+              // Un tap lo copia nel campo qui sopra: il numero resta una
+              // proposta, non un automatismo — quanto metti da parte lo
+              // decidi tu, l'app si limita a dirti quanto potresti.
+              if (provider.avanzatoMesePrecedente != null) ...[
+                const SizedBox(height: 12),
+                _BannerAvanzato(
+                  avanzato: provider.avanzatoMesePrecedente!,
+                  mese: provider.mesePrecedente!.mese,
+                  onUsa: () {
+                    _risparmioCtrl.text = provider.avanzatoMesePrecedente!
+                        .toStringAsFixed(0);
+                    setState(() {});
+                  },
+                ),
+              ],
+
               const SizedBox(height: 16),
 
               // Card totale storico
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
+                  color: AppColors.positivo.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                 ),
@@ -155,9 +173,9 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.trending_up, color: AppColors.accent, size: 18),
+                        const Icon(Icons.trending_up, color: AppColors.positivo, size: 18),
                         const SizedBox(width: 8),
-                        const Text('TOTALE STORICO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accent, letterSpacing: 2)),
+                        const Text('TOTALE STORICO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.positivo, letterSpacing: 2)),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -170,7 +188,7 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
                         ),
                         const Padding(
                           padding: EdgeInsets.only(bottom: 8, left: 6),
-                          child: Text('€', style: TextStyle(fontSize: 24, color: AppColors.accent, fontWeight: FontWeight.w300)),
+                          child: Text('€', style: TextStyle(fontSize: 24, color: AppColors.positivo, fontWeight: FontWeight.w300)),
                         ),
                       ],
                     ),
@@ -250,7 +268,7 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
                                 barRods: [
                                   BarChartRodData(
                                     toY: e.value.risparmiato,
-                                    color: isUltimo ? AppColors.accent : AppColors.accent.withValues(alpha: 0.45),
+                                    color: isUltimo ? AppColors.positivo : AppColors.positivo.withValues(alpha: 0.45),
                                     width: 28,
                                     borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                                   ),
@@ -283,6 +301,83 @@ class _SalvadanaiScreenState extends State<SalvadanaiScreen> {
                 ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "A luglio sono avanzati 80 €" + un tap per portarli nel campo del risparmio.
+///
+/// Il numero arriva dal record del mese scorso chiuso dal cron
+/// (`budgetAllocato − speso`), quindi è la spesa vera, non una stima.
+class _BannerAvanzato extends StatelessWidget {
+  final double avanzato;
+  final DateTime mese;
+  final VoidCallback onUsa;
+
+  const _BannerAvanzato({
+    required this.avanzato,
+    required this.mese,
+    required this.onUsa,
+  });
+
+  static const _nomi = [
+    '', 'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+    'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onUsa,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.positivo.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.positivo.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.savings, color: AppColors.positivo, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'A ${_nomi[mese.month]} hai risparmiato '
+                      '${avanzato.toStringAsFixed(0)} €',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Tocca per metterli nel salvadanaio',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward,
+                color: AppColors.positivo,
+                size: 18,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -437,7 +532,7 @@ class _CardDettaglio extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Speso', style: TextStyle(color: AppColors.textSecondary)),
-              Text('${mese.speso.toStringAsFixed(0)} €', style: const TextStyle(color: Color(0xFFEAB308), fontWeight: FontWeight.w600)),
+              Text('${mese.speso.toStringAsFixed(0)} €', style: const TextStyle(color: AppColors.avviso, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 12),
@@ -447,7 +542,7 @@ class _CardDettaglio extends StatelessWidget {
               value: percentuale,
               minHeight: 6,
               backgroundColor: AppColors.input,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEAB308)),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.avviso),
             ),
           ),
           const SizedBox(height: 8),
@@ -455,7 +550,7 @@ class _CardDettaglio extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('${(percentuale * 100).toStringAsFixed(0)}% del budget', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              Text('Risparmiato: ${mese.risparmiato.toStringAsFixed(0)} €', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+              Text('Risparmiato: ${mese.risparmiato.toStringAsFixed(0)} €', style: const TextStyle(color: AppColors.positivo, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
         ],

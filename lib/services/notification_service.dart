@@ -182,7 +182,8 @@ class NotificationService {
   /// disdire: serve anche a togliere le notifiche di una ricorrente cancellata
   /// o a cui è stata tolta la spunta.
   static Future<void> scheduleAll(
-    List<Category> categorie, {
+    List<Transaction> ricorrenti, {
+    required List<Category> categorie,
     required String walletId,
     TimeOfDay? orario,
   }) async {
@@ -196,15 +197,14 @@ class NotificationService {
       if (n != null) await _plugin.cancel(n);
     }
 
+    // I template arrivano già filtrati dal server; qui serve solo il nome della
+    // categoria per il testo della notifica.
+    final perId = {for (final c in categorie) c.documentId: c};
+
     final pianificati = <String>[];
-    for (final cat in categorie) {
-      for (final t in cat.transazionis) {
-        // Basta il flag ricorrente: la data di riferimento la ricava
-        // scheduleRicorrente (ricorrenzaTemporale ?? data).
-        if (!t.transazioneRicorrente) continue;
-        await scheduleRicorrente(t, cat, orario: orario);
-        pianificati.add(t.documentId.hashCode.toString());
-      }
+    for (final t in ricorrenti) {
+      await scheduleRicorrente(t, perId[t.categoriaDocumentId], orario: orario);
+      pianificati.add(t.documentId.hashCode.toString());
     }
     await prefs.setStringList(chiave, pianificati);
   }

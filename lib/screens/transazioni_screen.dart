@@ -402,14 +402,19 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                         final cat = categorie[i];
                         final isSelected =
                             _categoriaSelezionata?.documentId == cat.documentId;
-                        final colore =
-                            AppColors.categorie[i % AppColors.categorie.length];
+                        // Colore agganciato all'ID, non alla posizione nella
+                        // lista: con `i % 7` bastava cancellare una categoria
+                        // per far scalare il colore di tutte quelle dopo, e la
+                        // memoria visiva ("il viola è la spesa") saltava.
+                        final colore = AppColors.categorie[
+                            cat.documentId.hashCode.abs() %
+                                AppColors.categorie.length];
                         return GestureDetector(
                           onTap: () =>
                               setState(() => _categoriaSelezionata = cat),
                           child: Container(
-                            width: 90,
-                            height: 90,
+                            width: 94,
+                            height: 96,
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? colore.withValues(alpha: 0.15)
@@ -439,7 +444,7 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     color: isSelected
                                         ? colore
                                         : AppColors.textSecondary,
@@ -700,7 +705,7 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                                         : 'Errore nel salvataggio',
                                   ),
                                   backgroundColor: successo
-                                      ? AppColors.accent
+                                      ? AppColors.positivo
                                       : AppColors.error,
                                 ),
                               );
