@@ -379,7 +379,6 @@ class _CardRiepilogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rimanente = dashboard.totaleRimanente;
-    final coloreRimanente = rimanente < 0 ? AppColors.error : AppColors.accent;
 
     return Row(
       children: [
@@ -402,8 +401,9 @@ class _CardRiepilogo extends StatelessWidget {
         Expanded(
           child: _MiniCard(
             label: 'Rimanenti',
-            valore: '€${rimanente.toStringAsFixed(0)}',
-            colore: coloreRimanente,
+            // Col segno: il colore da solo non basta a dire "sei sotto zero".
+            valore: Euro.segnato(rimanente),
+            colore: Euro.colore(rimanente),
           ),
         ),
       ],
@@ -461,10 +461,13 @@ class _CardCategoria extends StatelessWidget {
   Widget build(BuildContext context) {
     final spesi = categoria.transazionis.fold(0.0, (s, t) => s + t.importo);
     final rimanente = categoria.budgetCategoria - spesi;
-    final percentuale = categoria.budgetCategoria > 0
-        ? (spesi / categoria.budgetCategoria).clamp(0.0, 1.0)
+    final quota = categoria.budgetCategoria > 0
+        ? spesi / categoria.budgetCategoria
         : 0.0;
-    final coloreRimanente = rimanente < 0 ? AppColors.error : AppColors.accent;
+    final percentuale = quota.clamp(0.0, 1.0);
+    // Quanto si è sforato, in frazione di budget: 1.4 -> 40% oltre.
+    // La barra da sola è clampata a 1, quindi al 110% e al 300% è identica.
+    final oltre = (quota - 1).clamp(0.0, 1.0);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -507,11 +510,11 @@ class _CardCategoria extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '€${rimanente.toStringAsFixed(0)}',
+                        Euro.segnato(rimanente),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: coloreRimanente,
+                          color: Euro.colore(rimanente),
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -523,17 +526,40 @@ class _CardCategoria extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  // Progress bar — equivalente della ProgressBar in Vue
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: percentuale,
-                      minHeight: 6,
-                      backgroundColor: AppColors.input,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        rimanente < 0 ? AppColors.error : AppColors.accent,
+                  // Progress bar. Due segmenti quando si sfora: il primo è il
+                  // budget consumato, il secondo quanto si è andati oltre.
+                  // Con la sola barra clampata, il 110% e il 300% erano
+                  // identici — rossi entrambi, pieni entrambi.
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: percentuale,
+                            minHeight: 6,
+                            backgroundColor: AppColors.input,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              rimanente < 0 ? AppColors.error : AppColors.positivo,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      if (oltre > 0) ...[
+                        const SizedBox(width: 3),
+                        Expanded(
+                          flex: (oltre * 100).round().clamp(1, 100),
+                          child: Container(
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

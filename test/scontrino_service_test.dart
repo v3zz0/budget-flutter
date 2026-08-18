@@ -58,4 +58,47 @@ void main() {
     expect(d.totale, isNull);
     expect(d.descrizione, isNull);
   });
+
+  // Lo scontrino Sigma di Milazzo, fotografato in mano: la colonna dei prezzi
+  // e' disallineata rispetto alle diciture perche' la carta e' storta.
+  // Prima di questo check il totale non veniva agganciato e il campo restava
+  // vuoto, pur essendo "20,12" perfettamente leggibile nella foto.
+  test('colonna dei prezzi leggermente disallineata', () {
+    final d = ScontrinoService.estrai(const [
+      RigaOcr('TOTALE COMPLESSIVO', 1000, 20),
+      RigaOcr('20,12', 1014, 20), // sbandamento di 14px: piu' di h/2, meno di 1,5h
+      RigaOcr('DI CUI IVA', 1040, 20),
+      RigaOcr('2,83', 1054, 20),
+    ]);
+    expect(d.totale, 20.12);
+  });
+
+  test('fra due candidati vince quello alla stessa altezza', () {
+    final d = ScontrinoService.estrai(const [
+      RigaOcr('TOTALE COMPLESSIVO', 1000, 20),
+      RigaOcr('20,12', 1005, 20), // sua
+      RigaOcr('2,83', 1028, 20), // della riga sotto, ora dentro la finestra
+    ]);
+    expect(d.totale, 20.12);
+  });
+
+  // Se la dicitura buona non aggancia, resta "IMPORTO PAGATO".
+  test('ripiega su IMPORTO PAGATO, non su PAGAMENTO CONTANTE', () {
+    final d = ScontrinoService.estrai(const [
+      RigaOcr('TOTALE COMPLESSIVO', 1000, 20),
+      RigaOcr('PAGAMENTO CONTANTE 50,00', 1100, 20),
+      RigaOcr('RESTO 29,88', 1140, 20),
+      RigaOcr('IMPORTO PAGATO 20,12', 1180, 20),
+    ]);
+    expect(d.totale, 20.12); // non 50,00: quello e' quanto hai dato al cassiere
+  });
+
+  test('il testo letto torna sempre indietro, anche quando non trova nulla', () {
+    final d = ScontrinoService.estrai(const [
+      RigaOcr('SUPERMERCATI SIGMA', 100, 20),
+      RigaOcr('roba illeggibile', 140, 20),
+    ]);
+    expect(d.totale, isNull);
+    expect(d.righeLette, ['SUPERMERCATI SIGMA', 'roba illeggibile']);
+  });
 }

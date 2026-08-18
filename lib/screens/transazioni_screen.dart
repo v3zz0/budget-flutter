@@ -97,13 +97,61 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
       }
 
       if (dati.totale == null) {
-        _avviso('Totale non riconosciuto, scrivilo a mano');
+        // Con il testo a portata di mano si capisce in dieci secondi se il
+        // problema è l'OCR che ha letto male o il parser che non aggancia.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Totale non riconosciuto, scrivilo a mano'),
+            backgroundColor: AppColors.error,
+            action: SnackBarAction(
+              label: 'Cosa ho letto',
+              textColor: Colors.white,
+              onPressed: () => _mostraTestoOcr(dati.righeLette),
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) _avviso('Errore nella lettura dello scontrino');
     } finally {
       if (mounted) setState(() => _scansionando = false);
     }
+  }
+
+  void _mostraTestoOcr(List<String> righe) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Testo letto dalla foto',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 17)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: righe.isEmpty
+              ? const Text('Nessun testo riconosciuto: rifai la foto con più luce.',
+                  style: TextStyle(color: AppColors.textSecondary))
+              : ListView(
+                  shrinkWrap: true,
+                  children: righe
+                      .map((r) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(r,
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                    fontFamily: 'monospace')),
+                          ))
+                      .toList(),
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Chiudi'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _avviso(String messaggio) {

@@ -15,8 +15,31 @@ class SalvadanaiProvider extends ChangeNotifier {
 
   double get totaleStorico => _voci.fold(0, (sum, s) => sum + s.risparmiato);
 
-  // Ultimo mese disponibile (mese precedente popolato dal cron Strapi)
-  Salvadanaio? get mesePrecedente => _voci.isNotEmpty ? _voci.last : null;
+  // Il mese PRECEDENTE a quello in corso, cioè l'ultimo chiuso dal cron.
+  // Prima qui c'era `_voci.last`, che con l'ordine cronologico è il mese
+  // corrente: la card di dettaglio finiva a duplicare quella editabile lì sopra.
+  Salvadanaio? get mesePrecedente {
+    final ora = DateTime.now();
+    final precedente = DateTime(ora.year, ora.month - 1);
+    for (final v in _voci) {
+      if (v.mese.year == precedente.year && v.mese.month == precedente.month) {
+        return v;
+      }
+    }
+    return null;
+  }
+
+  /// Quanto è avanzato il mese scorso: budget meno speso, solo se positivo.
+  ///
+  /// È il numero da proporre al salvadanaio ("hai risparmiato 80 euro"), e resta
+  /// distinto da `risparmiato`, che è quanto l'utente ha deciso di mettere via
+  /// davvero. Null quando non c'è ancora niente da dire.
+  double? get avanzatoMesePrecedente {
+    final m = mesePrecedente;
+    if (m == null || m.budgetAllocato <= 0) return null;
+    final avanzo = m.budgetAllocato - m.speso;
+    return avanzo > 0 ? avanzo : null;
+  }
 
   // Ultimi 6 mesi per il grafico
   List<Salvadanaio> get ultimi6Mesi => _voci.length > 6 ? _voci.sublist(_voci.length - 6) : _voci;

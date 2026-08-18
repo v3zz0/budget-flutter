@@ -17,7 +17,15 @@ class DatiScontrino {
   final double? totale;
   final String? descrizione;
 
-  const DatiScontrino({this.totale, this.descrizione});
+  /// Cosa ha letto l'OCR, riga per riga. Serve quando il totale non salta
+  /// fuori: senza vederlo si ragiona al buio su una foto che non c'è più.
+  final List<String> righeLette;
+
+  const DatiScontrino({
+    this.totale,
+    this.descrizione,
+    this.righeLette = const [],
+  });
 }
 
 /// OCR degli scontrini, interamente on-device: nessuna chiave API, nessuna
@@ -29,6 +37,15 @@ class ScontrinoService {
 
   // Righe che contengono "total" ma non sono il totale da pagare.
   static final _esclusi = RegExp(r'SUBTOT|PARZIAL|\bIVA\b|SCONTO|ARTICOL');
+
+  // La dicitura buona: quasi tutti gli scontrini italiani ne hanno una.
+  static final _totale = RegExp(r'TOTAL|TOT\.');
+
+  // Diciture di riserva, provate solo se la prima passata non trova niente.
+  // "IMPORTO PAGAT" e non "PAGA", altrimenti prenderebbe "PAGAMENTO CONTANTE",
+  // che sullo scontrino e' quanto hai dato al cassiere: 50 euro per una spesa
+  // da 20, e finirebbero nel budget cosi' come sono.
+  static final _riserva = RegExp(r'IMPORTO PAGAT|DA PAGARE|TOT COMPL');
 
   /// Legge lo scontrino fotografato in [imagePath].
   static Future<DatiScontrino> leggi(String imagePath) async {
@@ -56,15 +73,19 @@ class ScontrinoService {
   /// Parte pura: niente fotocamera, niente ML Kit, quindi testabile.
   static DatiScontrino estrai(List<RigaOcr> righe) {
     return DatiScontrino(
-      totale: _trovaTotale(righe),
+      // Prima la dicitura buona su tutto lo scontrino, poi quelle di riserva:
+      // un "TOTALE" letto male non deve far ripiegare su una riga peggiore
+      // finche' c'e' ancora un "TOTALE" piu' sotto da provare.
+      totale: _trovaTotale(righe, _totale) ?? _trovaTotale(righe, _riserva),
       descrizione: _trovaDescrizione(righe),
+      righeLette: righe.map((r) => r.testo).toList(),
     );
   }
 
-  static double? _trovaTotale(List<RigaOcr> righe) {
+  static double? _trovaTotale(List<RigaOcr> righe, RegExp dicitura) {
     for (var i = 0; i < righe.length; i++) {
       final testo = righe[i].testo.toUpperCase();
-      if (!testo.contains('TOTAL') && !testo.contains('TOT.')) continue;
+      if (!dicitura.hasMatch(testo)) continue;
       if (_esclusi.hasMatch(testo)) continue;
 
       // Caso normale: l'importo è sulla stessa riga.
@@ -72,13 +93,22 @@ class ScontrinoService {
       if (sullaRiga.isNotEmpty) return _num(sullaRiga.last[0]!);
 
       // Caso scontrino largo: l'importo è in un altro blocco, alla stessa
-      // altezza. Tolleranza = altezza della riga, così non dipende dai DPI
-      // della foto.
+      // altezza. Tolleranza proporzionale all'altezza della riga, così non
+      // dipende dai DPI della foto.
+      //
+      // Una volta e mezza e non una: la foto di uno scontrino tenuto in mano è
+      // sempre un po' storta, e su una colonna distante mezza pagina bastano
+      // pochi gradi perché il numero giusto esca dalla finestra. Con 1,5 resta
+      // dentro, e il rischio di pescare la riga sotto è coperto dal fatto che
+      // vince comunque la più vicina.
+      // ponytail: se un giorno prendesse il numero della riga sbagliata, la
+      // strada è confrontare le X (l'importo sta a destra della dicitura), non
+      // stringere di nuovo la finestra.
       RigaOcr? vicina;
       for (var j = 0; j < righe.length; j++) {
         if (j == i) continue;
         final dist = (righe[j].y - righe[i].y).abs();
-        if (dist > righe[i].h) continue;
+        if (dist > righe[i].h * 1.5) continue;
         if (!_importo.hasMatch(righe[j].testo)) continue;
         if (vicina == null || dist < (vicina.y - righe[i].y).abs()) {
           vicina = righe[j];

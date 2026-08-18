@@ -76,12 +76,15 @@ class DashboardProvider extends ChangeNotifier {
     try {
       _categorie = await _service.loadCategories(token, walletDocumentId);
       // Pianifica notifiche per le ricorrenti con l'orario scelto.
-      // L'avviso di soglia va DOPO, non in parallelo: scheduleAll comincia con
-      // un cancelAll() che spazzerebbe via l'avviso appena mostrato. Restano
-      // entrambi fuori dall'await di loadCategorie per non rallentare la
-      // dashboard, ma in quest'ordine.
-      NotificationService.scheduleAll(_categorie, orario: orarioNotifiche)
-          .then((_) => _avvisaSoglieSuperate());
+      // In sequenza e non in parallelo: scheduleAll disdice gli ID pianificati
+      // al giro precedente, e uno di quelli può essere un avviso di soglia
+      // appena mostrato. Restano entrambi fuori dall'await di loadCategorie per
+      // non rallentare la dashboard, ma in quest'ordine.
+      NotificationService.scheduleAll(
+        _categorie,
+        walletId: walletDocumentId,
+        orario: orarioNotifiche,
+      ).then((_) => _avvisaSoglieSuperate());
       _aggiornaWidget(walletDocumentId);
     } catch (e) {
       errore = erroreLeggibile(e);

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/transaction.dart';
@@ -167,18 +168,44 @@ class NotificationService {
     return (await _plugin.pendingNotificationRequests()).length;
   }
 
-  // Pianifica tutte le ricorrenti — chiamato dopo loadCategorie
-  static Future<void> scheduleAll(List<Category> categorie, {TimeOfDay? orario}) async {
+  /// Chiave sotto cui teniamo gli ID pianificati per ciascun portafoglio.
+  static const String _chiavePianificate = 'notifiche_pianificate';
+
+  /// Pianifica le ricorrenti di UN portafoglio — chiamato dopo loadCategorie.
+  ///
+  /// Cancella solo le notifiche di questo portafoglio, non tutte. Prima qui
+  /// c'era `cancelAll()`: con due portafogli, aprirne uno spazzava via le
+  /// ricorrenti dell'altro, e nessuno le ripianificava finché non lo si
+  /// riapriva a mano. Con un portafoglio solo il bug era invisibile.
+  ///
+  /// Gli ID di ogni giro restano nelle preferenze, così al giro dopo si sa cosa
+  /// disdire: serve anche a togliere le notifiche di una ricorrente cancellata
+  /// o a cui è stata tolta la spunta.
+  static Future<void> scheduleAll(
+    List<Category> categorie, {
+    required String walletId,
+    TimeOfDay? orario,
+  }) async {
     if (_disabilitato) return;
-    await _plugin.cancelAll();
+
+    final prefs = await SharedPreferences.getInstance();
+    final chiave = '$_chiavePianificate:$walletId';
+
+    for (final id in prefs.getStringList(chiave) ?? const <String>[]) {
+      final n = int.tryParse(id);
+      if (n != null) await _plugin.cancel(n);
+    }
+
+    final pianificati = <String>[];
     for (final cat in categorie) {
       for (final t in cat.transazionis) {
         // Basta il flag ricorrente: la data di riferimento la ricava
         // scheduleRicorrente (ricorrenzaTemporale ?? data).
-        if (t.transazioneRicorrente) {
-          await scheduleRicorrente(t, cat, orario: orario);
-        }
+        if (!t.transazioneRicorrente) continue;
+        await scheduleRicorrente(t, cat, orario: orario);
+        pianificati.add(t.documentId.hashCode.toString());
       }
     }
+    await prefs.setStringList(chiave, pianificati);
   }
 }

@@ -9,7 +9,12 @@ class SalvadanaiService {
       queryParameters: {
         'filters[wallet][documentId][\$eq]': walletDocumentId,
         'populate': 'wallet',
-        'sort': 'mese:asc',
+        // desc + reversed, NON asc: con `asc` il limite tagliava i mesi più
+        // recenti invece dei più vecchi. Dal 25° record in poi il mese corrente
+        // spariva dalla lista, `meseCorrente` tornava null e salvare il
+        // risparmio creava un secondo record per lo stesso mese invece di
+        // aggiornare quello esistente.
+        'sort': 'mese:desc',
         'pagination[limit]': '24',
       },
     );
@@ -18,7 +23,9 @@ class SalvadanaiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final List items = data['data'] ?? [];
-      return items.map((item) => Salvadanaio.fromJson(item)).toList();
+      // Il resto dell'app (grafico, `_voci.last`, totale) si aspetta l'ordine
+      // cronologico: si rigira qui, una volta sola.
+      return items.map((item) => Salvadanaio.fromJson(item)).toList().reversed.toList();
     }
     throw Exception('Errore nel caricamento del salvadanaio: ${response.statusCode}');
   }
