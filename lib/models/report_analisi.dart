@@ -52,6 +52,27 @@ class TransazioneMancante {
       );
 }
 
+/// Una categoria in cui si può registrare un movimento mancante, col
+/// portafoglio a cui appartiene. Non sono solo quelle del portafoglio
+/// analizzato: l'estratto conto contiene le spese di tutti.
+class CategoriaScelta {
+  final String documentId;
+  final String nome;
+  final String wallet;
+
+  CategoriaScelta({
+    required this.documentId,
+    required this.nome,
+    required this.wallet,
+  });
+
+  factory CategoriaScelta.fromJson(Map<String, dynamic> j) => CategoriaScelta(
+        documentId: j['documentId'] ?? '',
+        nome: j['nome'] ?? '',
+        wallet: j['wallet'] ?? '',
+      );
+}
+
 class TotaleReport {
   final double budget;
   final double speso;
@@ -89,6 +110,7 @@ class ReportAnalisi {
   final Map<String, String>? periodoEstratto; // { dal, al }
   final List<SforatoCategoria> sforamenti;
   final List<TransazioneMancante> mancanti;
+  final List<CategoriaScelta> categorie;
   final TotaleReport totale;
   final String giudizio;
 
@@ -99,6 +121,7 @@ class ReportAnalisi {
     this.periodoEstratto,
     required this.sforamenti,
     required this.mancanti,
+    required this.categorie,
     required this.totale,
     required this.giudizio,
   });
@@ -122,6 +145,18 @@ class ReportAnalisi {
       mancanti: (j['mancanti'] as List? ?? [])
           .map((e) => TransazioneMancante.fromJson(e))
           .toList(),
+      // Backend non ancora aggiornato: si ripiega sulle categorie del solo
+      // portafoglio analizzato, che negli sforamenti ci sono sempre.
+      categorie: (j['categorie'] as List?)
+              ?.map((e) => CategoriaScelta.fromJson(e))
+              .toList() ??
+          (j['sforamenti'] as List? ?? [])
+              .map((e) => CategoriaScelta(
+                    documentId: e['documentId'] ?? '',
+                    nome: e['nome'] ?? '',
+                    wallet: '',
+                  ))
+              .toList(),
       totale: TotaleReport.fromJson(j['totale'] ?? {}),
       giudizio: j['giudizio'] ?? '',
     );

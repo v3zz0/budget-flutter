@@ -14,9 +14,10 @@ import '../../theme.dart';
 class ReportMancantiWidget extends StatelessWidget {
   final List<TransazioneMancante> mancanti;
 
-  // Le categorie del portafoglio arrivano dagli sforamenti dello stesso report:
-  // hanno già nome e documentId, quindi non serve nessuna chiamata in più.
-  final List<SforatoCategoria> categorie;
+  // Le categorie di TUTTI i portafogli, non solo di quello analizzato:
+  // l'estratto conto è del conto corrente, e una rata di casa va registrata in
+  // "Casa" anche se stai guardando "Spese personali".
+  final List<CategoriaScelta> categorie;
 
   const ReportMancantiWidget({
     super.key,
@@ -97,7 +98,7 @@ class _TransazioneRow extends StatefulWidget {
   final TransazioneMancante m;
   final NumberFormat fmt;
   final DateFormat dateFmt;
-  final List<SforatoCategoria> categorie;
+  final List<CategoriaScelta> categorie;
 
   const _TransazioneRow({
     required this.m,
@@ -266,14 +267,21 @@ class _TransazioneRowState extends State<_TransazioneRow> {
 Future<String?> _scegliCategoria(
   BuildContext context,
   TransazioneMancante m,
-  List<SforatoCategoria> categorie,
+  List<CategoriaScelta> categorie,
 ) {
   // Preselezione col suggerimento dell'AI, quando c'è e corrisponde davvero a
-  // una categoria del portafoglio.
+  // una categoria esistente.
   final suggerita = categorie
       .where((c) => c.nome.toLowerCase() == (m.categoriaSuggerita ?? '').toLowerCase())
       .firstOrNull;
   String? scelta = suggerita?.documentId;
+
+  // Ordinate per portafoglio: le categorie di "Casa" restano vicine fra loro
+  // invece di finire sparse in mezzo a quelle degli altri.
+  final ordinate = [...categorie]..sort((a, b) {
+      final w = a.wallet.compareTo(b.wallet);
+      return w != 0 ? w : a.nome.compareTo(b.nome);
+    });
 
   final fmt = NumberFormat.currency(locale: 'it_IT', symbol: '€');
 
@@ -305,8 +313,14 @@ Future<String?> _scegliCategoria(
                 labelStyle: TextStyle(color: AppColors.textSecondary),
                 border: OutlineInputBorder(),
               ),
-              items: categorie
-                  .map((c) => DropdownMenuItem(value: c.documentId, child: Text(c.nome)))
+              items: ordinate
+                  .map((c) => DropdownMenuItem(
+                        value: c.documentId,
+                        child: Text(
+                          c.wallet.isEmpty ? c.nome : '${c.wallet} · ${c.nome}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
                   .toList(),
               onChanged: (v) => setStateDialog(() => scelta = v),
             ),
