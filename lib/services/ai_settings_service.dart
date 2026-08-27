@@ -4,10 +4,11 @@ import '../config.dart';
 import 'api_client.dart';
 
 /// I motori selezionabili dalle impostazioni.
-enum MotoreAi { ollama, openrouter }
+enum MotoreAi { ollama, openrouter, llamacpp }
 
 MotoreAi motoreDaStringa(String? s) => switch (s) {
       'openrouter' => MotoreAi.openrouter,
+      'llamacpp' => MotoreAi.llamacpp,
       _ => MotoreAi.ollama,
     };
 
@@ -15,26 +16,35 @@ class ImpostazioniAi {
   final MotoreAi motore;
   final String url;
   final String modello;
-  final bool chiaveImpostata; // la chiave non torna mai dal server
+  final bool chiaveImpostata; // chiave OpenRouter — non torna mai dal server
+  final bool chiaveLlamacppImpostata; // chiave llama.cpp, idem
 
   const ImpostazioniAi({
     this.motore = MotoreAi.ollama,
     this.url = '',
     this.modello = '',
     this.chiaveImpostata = false,
+    this.chiaveLlamacppImpostata = false,
   });
+
+  /// La chiave del motore attualmente selezionato è già salvata?
+  bool get chiaveMotoreImpostata =>
+      motore == MotoreAi.llamacpp ? chiaveLlamacppImpostata : chiaveImpostata;
 
   ImpostazioniAi copyWith({
     MotoreAi? motore,
     String? url,
     String? modello,
     bool? chiaveImpostata,
+    bool? chiaveLlamacppImpostata,
   }) =>
       ImpostazioniAi(
         motore: motore ?? this.motore,
         url: url ?? this.url,
         modello: modello ?? this.modello,
         chiaveImpostata: chiaveImpostata ?? this.chiaveImpostata,
+        chiaveLlamacppImpostata:
+            chiaveLlamacppImpostata ?? this.chiaveLlamacppImpostata,
       );
 }
 
@@ -52,6 +62,7 @@ class AiSettingsService {
       url: j['aiUrl'] ?? '',
       modello: j['aiModello'] ?? '',
       chiaveImpostata: j['aiChiaveImpostata'] ?? false,
+      chiaveLlamacppImpostata: j['aiChiaveLlamacppImpostata'] ?? false,
     );
   }
 
@@ -63,13 +74,18 @@ class AiSettingsService {
     ImpostazioniAi s, {
     String? chiave,
   }) async {
+    final campoChiave =
+        s.motore == MotoreAi.llamacpp ? 'aiChiaveLlamacpp' : 'aiChiave';
+    final campoFlag = s.motore == MotoreAi.llamacpp
+        ? 'aiChiaveLlamacppImpostata'
+        : 'aiChiaveImpostata';
     final body = {
       'aiMotore': s.motore.name,
       'aiUrl': s.url,
       'aiModello': s.modello,
       if (chiave != null && chiave.isNotEmpty) ...{
-        'aiChiave': chiave,
-        'aiChiaveImpostata': true,
+        campoChiave: chiave,
+        campoFlag: true,
       },
     };
     final url = Uri.parse('${Config.apiBaseUrl}/api/users/$userId');

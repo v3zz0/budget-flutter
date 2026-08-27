@@ -1317,7 +1317,15 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
         if (_urlCtrl.text.isEmpty || _urlCtrl.text.contains('11434')) {
           _urlCtrl.text = 'https://openrouter.ai/api/v1';
         }
-      } else if (m == MotoreAi.ollama && _urlCtrl.text.contains('openrouter')) {
+      } else if (m == MotoreAi.llamacpp) {
+        if (_urlCtrl.text.isEmpty ||
+            _urlCtrl.text.contains('openrouter') ||
+            _urlCtrl.text.contains('11434')) {
+          _urlCtrl.text = 'http://localhost:8080';
+        }
+      } else if (m == MotoreAi.ollama &&
+          (_urlCtrl.text.contains('openrouter') ||
+           _urlCtrl.text.contains('8080'))) {
         _urlCtrl.text = '';
       }
     });
@@ -1354,9 +1362,13 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
     try {
       await _service.salva(token, userId, _daForm, chiave: _chiaveCtrl.text.trim());
       if (!mounted) return;
+      final chiaveScritta = _chiaveCtrl.text.trim().isNotEmpty;
       setState(() {
         _s = _daForm.copyWith(
-          chiaveImpostata: _s.chiaveImpostata || _chiaveCtrl.text.trim().isNotEmpty,
+          chiaveImpostata: _s.chiaveImpostata ||
+              (chiaveScritta && _s.motore != MotoreAi.llamacpp),
+          chiaveLlamacppImpostata: _s.chiaveLlamacppImpostata ||
+              (chiaveScritta && _s.motore == MotoreAi.llamacpp),
         );
         _chiaveCtrl.clear();
       });
@@ -1425,6 +1437,13 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
             onTap: () => _cambiaMotore(MotoreAi.ollama),
           ),
           _SceltaMotore(
+            icona: Icons.terminal_rounded,
+            titolo: 'llama.cpp',
+            sottotitolo: 'Il server llama.cpp in locale. API OpenAI-compatibile',
+            attivo: _s.motore == MotoreAi.llamacpp,
+            onTap: () => _cambiaMotore(MotoreAi.llamacpp),
+          ),
+          _SceltaMotore(
             icona: Icons.cloud_outlined,
             titolo: 'OpenRouter',
             sottotitolo: 'Cloud, funziona ovunque. Ci sono modelli gratuiti',
@@ -1439,7 +1458,9 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
                 _CampoTesto(
                   etichetta: _s.motore == MotoreAi.ollama
                       ? 'Indirizzo (es. http://192.168.1.10:11434)'
-                      : 'Indirizzo API',
+                      : _s.motore == MotoreAi.llamacpp
+                        ? 'Indirizzo (es. http://localhost:8080)'
+                        : 'Indirizzo API',
                   controller: _urlCtrl,
                   icona: Icons.link,
                   tipo: TextInputType.url,
@@ -1464,12 +1485,15 @@ class _PaginaAnalisiAiState extends State<_PaginaAnalisiAi> {
                     ],
                   ],
                 ),
-                if (_s.motore == MotoreAi.openrouter) ...[
+                if (_s.motore == MotoreAi.openrouter ||
+                    _s.motore == MotoreAi.llamacpp) ...[
                   const SizedBox(height: 12),
                   _CampoTesto(
-                    etichetta: _s.chiaveImpostata
+                    etichetta: _s.chiaveMotoreImpostata
                         ? 'Chiave API (già salvata, riscrivi per cambiarla)'
-                        : 'Chiave API',
+                        : _s.motore == MotoreAi.llamacpp
+                            ? 'Chiave API (vuota se il server non la richiede)'
+                            : 'Chiave API',
                     controller: _chiaveCtrl,
                     icona: Icons.key,
                     password: true,
