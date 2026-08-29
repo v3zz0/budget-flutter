@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../models/category.dart';
 import '../models/transaction.dart';
 import '../theme.dart';
+import 'anno_screen.dart';
 import 'consigli_screen.dart';
 import 'transazioni_screen.dart';
 
@@ -88,6 +89,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return nomi[mese];
   }
 
+  void _apriAnno() {
+    final wallet = context.read<WalletProvider>().selectedWallet;
+    if (wallet == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AnnoScreen(wallet: wallet)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboard = context.watch<DashboardProvider>();
@@ -111,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     dashboard: dashboard,
                     nomeMese: _nomeMese,
                     onCambiaMese: _cambiaMese,
+                    onApriAnno: _apriAnno,
                   ),
                 ),
                 const _CampanellaConsigli(),
@@ -318,11 +328,13 @@ class _NavigatoreMese extends StatelessWidget {
   final DashboardProvider dashboard;
   final String Function(int) nomeMese;
   final void Function(int passo) onCambiaMese;
+  final VoidCallback onApriAnno;
 
   const _NavigatoreMese({
     required this.dashboard,
     required this.nomeMese,
     required this.onCambiaMese,
+    required this.onApriAnno,
   });
 
   @override
@@ -339,12 +351,30 @@ class _NavigatoreMese extends StatelessWidget {
           tooltip: 'Mese precedente',
           onPressed: bloccate ? null : () => onCambiaMese(-1),
         ),
-        Text(
-          '${nomeMese(dashboard.meseScelto.month)} ${dashboard.meseScelto.year}',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+        // Toccare l'etichetta apre il riepilogo dell'anno. Non un toggle nella
+        // dashboard: il percorso mensile ha addosso notifiche, avvisi di
+        // soglia e push al widget in home, tutti legati al mese scelto.
+        InkWell(
+          onTap: bloccate ? null : onApriAnno,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${nomeMese(dashboard.meseScelto.month)} ${dashboard.meseScelto.year}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.bar_chart_rounded,
+                    size: 16, color: AppColors.textSecondary),
+              ],
+            ),
           ),
         ),
         IconButton(

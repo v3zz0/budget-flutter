@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_flutter/services/export_service.dart';
+import 'package:budget_flutter/services/transazioni_query.dart';
 
-RigaExport _riga({
+RigaTransazione _riga({
   DateTime? data,
   double importo = 12.5,
   String descrizione = 'Spesa',
@@ -11,10 +12,11 @@ RigaExport _riga({
   bool ricorrente = false,
   bool contanti = false,
 }) =>
-    RigaExport(
+    RigaTransazione(
       data: data ?? DateTime(2026, 7, 5),
       importo: importo,
       descrizione: descrizione,
+      categoriaId: 'cat-1',
       categoria: categoria,
       budgetCategoria: budget,
       portafoglio: portafoglio,
