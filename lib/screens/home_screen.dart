@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../widgets/skeleton.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/consigli_provider.dart';
@@ -81,45 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _esportaCsv() async {
-    final dashboard = context.read<DashboardProvider>();
-    final wallet = context.read<WalletProvider>();
-    final categorie = dashboard.categorieFiltrate;
-    if (categorie.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun dato da esportare'), backgroundColor: AppColors.error),
-      );
-      return;
-    }
 
-    // Costruzione CSV — equivalente del foreach + reduce in Vue
-    final buffer = StringBuffer();
-    buffer.writeln('Categoria,Budget,Spesi,Rimanente,Data,Descrizione,Importo,Ricorrente');
-
-    for (final cat in categorie) {
-      final spesi = cat.transazionis.fold(0.0, (s, t) => s + t.importo);
-      final rimanente = cat.budgetCategoria - spesi;
-      if (cat.transazionis.isEmpty) {
-        buffer.writeln('"${cat.nome}",${cat.budgetCategoria.toStringAsFixed(2)},${spesi.toStringAsFixed(2)},${rimanente.toStringAsFixed(2)},,,,');
-      } else {
-        for (final t in cat.transazionis) {
-          final data = '${t.data.day.toString().padLeft(2, '0')}/${t.data.month.toString().padLeft(2, '0')}/${t.data.year}';
-          final desc = t.descrizione.replaceAll('"', '""');
-          buffer.writeln('"${cat.nome}",${cat.budgetCategoria.toStringAsFixed(2)},${spesi.toStringAsFixed(2)},${rimanente.toStringAsFixed(2)},$data,"$desc",${t.importo.toStringAsFixed(2)},${t.transazioneRicorrente ? "Sì" : "No"}');
-        }
-      }
-    }
-
-    final mese = _nomeMese(dashboard.meseScelto.month).toLowerCase();
-    final anno = dashboard.meseScelto.year;
-    final walletNome = wallet.selectedWallet?.nome.replaceAll(' ', '_') ?? 'wallet';
-    final fileName = 'budget_${walletNome}_${mese}_$anno.csv';
-
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(buffer.toString());
-    await Share.shareXFiles([XFile(file.path)], subject: 'Export $fileName');
-  }
 
   String _nomeMese(int mese) {
     const nomi = [
@@ -155,11 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const _CampanellaConsigli(),
-                IconButton(
-                  icon: const Icon(Icons.download_outlined, color: AppColors.textPrimary),
-                  tooltip: 'Esporta CSV',
-                  onPressed: _esportaCsv,
-                ),
               ],
             ),
             const SizedBox(height: 16),

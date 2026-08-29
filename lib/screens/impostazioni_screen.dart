@@ -13,6 +13,7 @@ import '../services/soglia_service.dart';
 import '../models/category.dart';
 import '../models/wallet.dart';
 import '../theme.dart';
+import 'export_screen.dart';
 import 'ricorrenti_screen.dart';
 
 // Impostazioni in modalità lista: una voce per area, ognuna apre la sua pagina.
@@ -71,6 +72,12 @@ class ImpostazioniScreen extends StatelessWidget {
             titolo: 'Categorie di spesa',
             sottotitolo: 'Aggiungi, rinomina o elimina categorie',
             apri: () => const _PaginaCategorie(),
+          ),
+          _VoceImpostazioni(
+            icona: Icons.download_outlined,
+            titolo: 'Esporta dati',
+            sottotitolo: 'Tutte le transazioni in CSV, per anno o per mese',
+            apri: () => const ExportScreen(),
           ),
           _VoceImpostazioni(
             icona: Icons.repeat,

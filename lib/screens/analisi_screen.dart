@@ -10,6 +10,7 @@ import '../providers/wallet_provider.dart';
 import '../services/analisi_service.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
+import '../widgets/mese_picker.dart';
 import '../widgets/analisi/report_giudizio_widget.dart';
 import '../widgets/analisi/report_mancanti_widget.dart';
 import '../widgets/analisi/report_sforamenti_widget.dart';
@@ -76,10 +77,7 @@ class _AnalisiScreenState extends State<AnalisiScreen> {
     }
 
     // Picker mese: showDatePicker non ha modalità solo-mese, usiamo un dialog custom semplice
-    final scelta = await showDialog<DateTime>(
-      context: context,
-      builder: (ctx) => _MesePicker(iniziale: iniziale),
-    );
+    final scelta = await MesePicker.mostra(context, iniziale: iniziale);
     if (scelta == null || !mounted) return;
     final m = '${scelta.year}-${scelta.month.toString().padLeft(2, '0')}';
     provider.setMese(m);
@@ -359,112 +357,3 @@ class _SelectorCard extends StatelessWidget {
 }
 
 // Picker semplice per mese/anno
-class _MesePicker extends StatefulWidget {
-  final DateTime iniziale;
-  const _MesePicker({required this.iniziale});
-
-  @override
-  State<_MesePicker> createState() => _MesePickerState();
-}
-
-class _MesePickerState extends State<_MesePicker> {
-  late int _anno;
-  late int _mese;
-
-  @override
-  void initState() {
-    super.initState();
-    _anno = widget.iniziale.year;
-    _mese = widget.iniziale.month;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mesi = List.generate(12, (i) {
-      return DateFormat.MMMM('it_IT').format(DateTime(2000, i + 1));
-    });
-
-    return AlertDialog(
-      backgroundColor: AppColors.card,
-      title: const Text('Seleziona mese',
-          style: TextStyle(color: AppColors.textPrimary)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                tooltip: 'Anno precedente',
-                icon: const Icon(Icons.chevron_left,
-                    color: AppColors.textPrimary),
-                onPressed: () => setState(() => _anno--),
-              ),
-              Text(
-                _anno.toString(),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Anno successivo',
-                icon: const Icon(Icons.chevron_right,
-                    color: AppColors.textPrimary),
-                onPressed: () => setState(() => _anno++),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: List.generate(12, (i) {
-              final selezionato = (i + 1) == _mese;
-              return GestureDetector(
-                onTap: () => setState(() => _mese = i + 1),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: selezionato
-                        ? AppColors.accent
-                        : AppColors.input,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    mesi[i].substring(0, 3),
-                    style: TextStyle(
-                      color: selezionato
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annulla'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(DateTime(_anno, _mese)),
-          // Senza foregroundColor il testo prende onPrimary del tema, che è
-          // rimasto al viola scuro di default: scritta illeggibile sul blu.
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Conferma'),
-        ),
-      ],
-    );
-  }
-}
