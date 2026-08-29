@@ -58,8 +58,10 @@ class DashboardProvider extends ChangeNotifier {
     String walletDocumentId, {
     TimeOfDay? orarioNotifiche,
     String? walletNome,
+    bool walletEscluso = false,
   }) async {
     if (walletNome != null && walletNome.isNotEmpty) _walletNome = walletNome;
+    _walletEscluso = walletEscluso;
     isLoading = true;
     errore = null;
     notifyListeners();
@@ -92,9 +94,15 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
+  // Portafoglio tenuto fuori dalle statistiche: niente avvisi di soglia.
+  // Lo imposta chi chiama loadCategorie, perché il provider non conosce il
+  // wallet come oggetto, solo il suo documentId.
+  bool _walletEscluso = false;
+
   /// Notifica le categorie appena finite oltre soglia. Il servizio si occupa
   /// da sé di non ripetere l'avviso per la stessa categoria nello stesso mese.
   Future<void> _avvisaSoglieSuperate() async {
+    if (_walletEscluso) return;
     final nuove = await SogliaService.nuoveDaSegnalare(_categorie);
     for (final c in nuove) {
       await NotificationService.avvisoSoglia(

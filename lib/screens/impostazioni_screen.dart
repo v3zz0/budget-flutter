@@ -654,9 +654,11 @@ class _PaginaPortafogliState extends State<_PaginaPortafogli> {
             const _TabWallet(),
             const SizedBox(height: 20),
           ],
-          if (selezionato != null)
-            _CardDettagliWallet(wallet: selezionato)
-          else
+          if (selezionato != null) ...[
+            _CardDettagliWallet(wallet: selezionato),
+            const SizedBox(height: 20),
+            _CardEsclusioneWallet(wallet: selezionato),
+          ] else
             const Padding(
               padding: EdgeInsets.all(24),
               child: Text(
@@ -1668,6 +1670,106 @@ class _DialogoModelliState extends State<_DialogoModelli> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Toglie un portafoglio da export, analisi, consigli e avvisi di soglia,
+/// lasciandolo però visibile in dashboard.
+///
+/// Il caso d'uso è un portafoglio che serve da promemoria di scadenze (mutuo,
+/// IMU) e non da spesa corrente: nelle statistiche non fa che sporcare i numeri.
+///
+/// Il flag vive sul server e non nelle preferenze del telefono perché il cron
+/// dei consigli gira su Strapi: una preferenza locale non la vedrebbe e
+/// continuerebbe a generare consigli sul portafoglio escluso.
+class _CardEsclusioneWallet extends StatefulWidget {
+  final Wallet wallet;
+  const _CardEsclusioneWallet({required this.wallet});
+
+  @override
+  State<_CardEsclusioneWallet> createState() => _CardEsclusioneWalletState();
+}
+
+class _CardEsclusioneWalletState extends State<_CardEsclusioneWallet> {
+  bool _salvando = false;
+
+  Future<void> _cambia(bool escluso) async {
+    final token = requireToken(context);
+    if (token == null) return;
+
+    setState(() => _salvando = true);
+    final ok = await context.read<WalletProvider>().impostaEsclusione(
+      token,
+      widget.wallet,
+      escluso,
+    );
+    if (!mounted) return;
+    setState(() => _salvando = false);
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Non sono riuscito a salvare: riprova'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final escluso = widget.wallet.esclusoDaStatistiche;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'STATISTICHE',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            activeThumbColor: AppColors.accent,
+            title: Text(
+              'Escludi "${widget.wallet.nome}"',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Resta visibile in dashboard come promemoria, ma non entra in '
+              'export, analisi estratto conto, consigli e avvisi di budget.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+            value: escluso,
+            onChanged: _salvando ? null : _cambia,
+          ),
+          if (_salvando)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: LinearProgressIndicator(
+                minHeight: 2,
+                color: AppColors.accent,
+                backgroundColor: Colors.transparent,
+              ),
+            ),
+        ],
       ),
     );
   }

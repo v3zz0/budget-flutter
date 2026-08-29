@@ -38,8 +38,11 @@ class _HomeScreenState extends State<HomeScreen> {
       token,
       wallet.selectedWallet!.documentId,
       orarioNotifiche: context.read<UserSettingsProvider>().orarioNotifiche,
-      // Unico punto che passa il nome: serve solo al widget in home.
+      // Unico punto che passa nome ed esclusione: il primo serve al widget in
+      // home, la seconda a non far scattare avvisi di soglia su un portafoglio
+      // che l'utente ha tolto dalle statistiche.
       walletNome: wallet.selectedWallet!.nome,
+      walletEscluso: wallet.selectedWallet!.esclusoDaStatistiche,
     );
 
     // I consigli sono già pronti sul server (li genera il cron a fine mese):

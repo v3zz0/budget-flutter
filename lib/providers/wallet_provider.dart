@@ -62,6 +62,41 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
+  /// Portafogli che entrano in export, analisi e statistiche.
+  List<Wallet> get walletsInclusi =>
+      _wallets.where((w) => !w.esclusoDaStatistiche).toList();
+
+  /// true se il portafoglio aperto è tenuto fuori dalle statistiche.
+  bool get selezionatoEscluso => _selectedWallet?.esclusoDaStatistiche ?? false;
+
+  /// Attiva o disattiva l'esclusione di un portafoglio.
+  /// Aggiorna prima il server: se la chiamata fallisce lo stato locale non si
+  /// muove, così l'interruttore non racconta una cosa diversa dal database.
+  Future<bool> impostaEsclusione(
+    String token,
+    Wallet wallet,
+    bool escluso,
+  ) async {
+    try {
+      await _walletService.aggiornaEsclusione(token, wallet.documentId, escluso);
+    } catch (e) {
+      _errore = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+
+    final aggiornato = wallet.copyWith(esclusoDaStatistiche: escluso);
+    _wallets = [
+      for (final w in _wallets)
+        w.documentId == wallet.documentId ? aggiornato : w,
+    ];
+    if (_selectedWallet?.documentId == wallet.documentId) {
+      _selectedWallet = aggiornato;
+    }
+    notifyListeners();
+    return true;
+  }
+
   // setSelectedWallet() — equivalente dell'action setSelectedWallet() in Pinia
   Future<void> setSelectedWallet(Wallet wallet) async {
     _selectedWallet = wallet;
