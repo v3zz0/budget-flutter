@@ -19,6 +19,13 @@ class DatiDashboard {
 }
 
 class DashboardService {
+  /// Il massimo per pagina concesso dall'API (`maxLimit` in config/api.js).
+  static const int _perPagina = 100;
+
+  /// Tetto di sicurezza contro un ciclo infinito se il server rispondesse in
+  /// modo inatteso. 200 pagine sono 20.000 transazioni: irraggiungibili qui.
+  static const int _maxPagine = 200;
+
   /// Carica categorie e transazioni **del solo mese richiesto**.
   ///
   /// Prima era una chiamata sola con `populate=*`, che si tirava dietro tutte
@@ -95,27 +102,46 @@ class DashboardService {
     String? al,
     bool soloRicorrenti = false,
   }) async {
-    final query = {
-      'filters[categorie][wallet][documentId][\$eq]': walletId,
-      'populate': 'categorie',
-      'sort': 'Data:desc',
-      // 100 è il tetto imposto da config/api.js lato server. Un mese con più di
-      // 100 spese non esiste in questo uso; i template ricorrenti sono qualche
-      // decina. Se un giorno servisse di più, va paginato qui.
-      'pagination[limit]': '100',
-      'filters[Data][\$gte]': ?dal,
-      'filters[Data][\$lte]': ?al,
-      if (soloRicorrenti) 'filters[TransazioneRicorrente][\$eq]': 'true',
-    };
+    // Si cicla finché il server dice che ci sono altre pagine. Prima qui c'era
+    // un `pagination[limit]=100` secco, col commento "un mese con più di 100
+    // spese non esiste in questo uso": vero quasi sempre, ma quando smette di
+    // esserlo la dashboard mostra un totale più basso del reale senza dare
+    // nessun segnale. Un mese normale resta una chiamata sola, perché il ciclo
+    // esce subito.
+    final tutte = <Transaction>[];
+    var pagina = 1;
 
-    final uri = Uri.parse('${Config.apiBaseUrl}/api/transazionis')
-        .replace(queryParameters: query);
-    final response = await ApiClient.get(uri, token: token);
-    if (response.statusCode != 200) {
-      throw Exception('Errore nel caricamento delle transazioni: ${response.statusCode}');
+    while (pagina <= _maxPagine) {
+      final query = {
+        'filters[categorie][wallet][documentId][\$eq]': walletId,
+        'populate': 'categorie',
+        'sort': 'Data:desc',
+        // 100 è il tetto per pagina imposto da config/api.js lato server.
+        'pagination[page]': '$pagina',
+        'pagination[pageSize]': '$_perPagina',
+        'filters[Data][\$gte]': ?dal,
+        'filters[Data][\$lte]': ?al,
+        if (soloRicorrenti) 'filters[TransazioneRicorrente][\$eq]': 'true',
+      };
+
+      final uri = Uri.parse('${Config.apiBaseUrl}/api/transazionis')
+          .replace(queryParameters: query);
+      final response = await ApiClient.get(uri, token: token);
+      if (response.statusCode != 200) {
+        throw Exception('Errore nel caricamento delle transazioni: ${response.statusCode}');
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final List items = body['data'] ?? [];
+      tutte.addAll(items.map((i) => Transaction.fromJson(i)));
+
+      final meta = (body['meta']?['pagination'] as Map<String, dynamic>?) ?? {};
+      final pageCount = meta['pageCount'] ?? 1;
+      if (pagina >= pageCount || items.isEmpty) break;
+      pagina++;
     }
-    final List items = jsonDecode(response.body)['data'] ?? [];
-    return items.map((i) => Transaction.fromJson(i)).toList();
+
+    return tutte;
   }
 
   static String _iso(DateTime d) =>
