@@ -386,6 +386,13 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                   letterSpacing: 2,
                 ),
               ),
+              if (context.watch<DashboardProvider>().datiOffline) ...[
+                const Text(
+                  'Elenco salvato, potrebbe non essere aggiornato (offline)',
+                  style: TextStyle(color: AppColors.avviso, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+              ],
               const SizedBox(height: 12),
               categorie.isEmpty
                   ? const Text(

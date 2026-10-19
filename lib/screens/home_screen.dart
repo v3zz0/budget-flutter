@@ -142,18 +142,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ] else
               const SizedBox(height: 16),
 
-            // Tre card riepilogative — Budget / Spesi / Rimanenti
-            if (!dashboard.isLoading && dashboard.errore == null)
-              _CardRiepilogo(dashboard: dashboard, wallet: wallet),
+            // Tre card riepilogative — Budget / Spesi / Rimanenti.
+            // Non quando le categorie vengono dalla cache offline: la cache
+            // non ha le transazioni del mese, "Spesi €0" sarebbe un numero
+            // sbagliato spacciato per vero, non solo vecchio.
+            if (!dashboard.isLoading && dashboard.errore == null) ...[
+              if (dashboard.datiOffline)
+                const _BannerDatiOffline()
+              else ...[
+                _CardRiepilogo(dashboard: dashboard, wallet: wallet),
 
-            // Proiezione: compare solo se il ritmo di spesa porta a sforare.
-            // Nei primi giorni resta nascosta, perché con pochi giorni di dati
-            // l'estrapolazione dice qualsiasi cosa.
-            if (!dashboard.isLoading &&
-                dashboard.errore == null &&
-                dashboard.proiezionePreoccupante) ...[
-              const SizedBox(height: 12),
-              _BannerProiezione(dashboard: dashboard),
+                // Proiezione: compare solo se il ritmo di spesa porta a
+                // sforare. Nei primi giorni resta nascosta, perché con pochi
+                // giorni di dati l'estrapolazione dice qualsiasi cosa.
+                if (dashboard.proiezionePreoccupante) ...[
+                  const SizedBox(height: 12),
+                  _BannerProiezione(dashboard: dashboard),
+                ],
+              ],
             ],
 
             const SizedBox(height: 16),
@@ -182,8 +188,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-            // Lista categorie espandibili
-            if (!dashboard.isLoading && dashboard.errore == null)
+            // Lista categorie espandibili. Non in modalità dati offline, per
+            // lo stesso motivo delle card riepilogative: ogni categoria
+            // mostrerebbe "0 speso" anche quando in realtà ha transazioni
+            // che semplicemente non sono in cache.
+            if (!dashboard.isLoading &&
+                dashboard.errore == null &&
+                !dashboard.datiOffline)
               ...dashboard.categorieFiltrate.map(
                 (cat) => _CardCategoria(
                   categoria: cat,
@@ -261,6 +272,41 @@ class _BannerPendenti extends StatelessWidget {
           TextButton(
             onPressed: onRiprova,
             child: const Text('Riprova'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Budget/spesi non disponibili: le categorie mostrate vengono dall'ultima
+/// cache salvata (niente transazioni del mese), quindi i numeri sarebbero
+/// sbagliati, non solo vecchi. Si può comunque registrare una transazione
+/// dal tasto "+": i totali si aggiornano da soli alla riconnessione.
+class _BannerDatiOffline extends StatelessWidget {
+  const _BannerDatiOffline();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.avviso.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.avviso.withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.wifi_off, color: AppColors.avviso, size: 20),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Budget e spese non disponibili offline. Puoi comunque '
+              'registrare una transazione dal tasto "+": i totali si '
+              'aggiornano da soli alla riconnessione.',
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),

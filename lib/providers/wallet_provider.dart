@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/wallet.dart';
+import '../services/reference_cache.dart';
 import '../services/wallet_service.dart';
 
 class WalletProvider extends ChangeNotifier {
@@ -12,12 +13,17 @@ class WalletProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errore;
 
+  // true quando _wallets viene dall'ultima cache salvata, non da una
+  // risposta fresca del server (es. app aperta senza rete fin dall'inizio).
+  bool _datiOffline = false;
+
   // Getter pubblici
   List<Wallet> get wallets => _wallets;
   Wallet? get selectedWallet => _selectedWallet;
   bool get isLoading => _isLoading;
   String? get errore => _errore;
   bool get hasWallet => _selectedWallet != null;
+  bool get datiOffline => _datiOffline;
 
   // loadWallets() — equivalente di setWallets() + chiamata axios in Vue
   // Richiede il token JWT (preso da AuthProvider)
@@ -29,6 +35,8 @@ class WalletProvider extends ChangeNotifier {
     try {
       final lista = await _walletService.loadWallets(token, userId: userId);
       _wallets = lista;
+      _datiOffline = false;
+      await ReferenceCache.salvaWallets(lista);
 
       // Stessa logica del wallet.js Vue:
       // 1. Controlla se c'era un wallet salvato in SharedPreferences
@@ -56,6 +64,25 @@ class WalletProvider extends ChangeNotifier {
       }
     } catch (e) {
       _errore = e.toString().replaceAll('Exception: ', '');
+
+      // Niente dal server e niente ancora in memoria: prova con l'ultimo
+      // elenco visto con successo, così il modulo transazione non resta
+      // bloccato solo perché l'app non ha mai raggiunto il server in questa
+      // sessione.
+      if (_wallets.isEmpty) {
+        final cache = await ReferenceCache.caricaWallets();
+        if (cache.isNotEmpty) {
+          _wallets = cache;
+          _datiOffline = true;
+
+          final prefs = await SharedPreferences.getInstance();
+          final savedId = prefs.getString('selectedWalletId');
+          final trovato = savedId == null
+              ? <Wallet>[]
+              : cache.where((w) => w.documentId == savedId).toList();
+          _selectedWallet = trovato.isNotEmpty ? trovato.first : cache.first;
+        }
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

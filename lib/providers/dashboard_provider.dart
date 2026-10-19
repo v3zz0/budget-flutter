@@ -4,6 +4,7 @@ import '../models/transaction.dart';
 import '../services/dashboard_service.dart';
 import '../services/api_client.dart';
 import '../services/notification_service.dart';
+import '../services/reference_cache.dart';
 import '../services/soglia_service.dart';
 import '../widget/widget_bridge.dart';
 
@@ -14,6 +15,11 @@ class DashboardProvider extends ChangeNotifier {
   List<Transaction> _ricorrenti = [];
   bool isLoading = false;
   String? errore;
+
+  // true quando _categorie viene dall'ultima cache salvata (solo nomi e
+  // budget, niente transazioni): budget/spesi del mese non sono attendibili
+  // in questo stato, servono solo a popolare il modulo nuova transazione.
+  bool datiOffline = false;
 
   // Navigazione mese — equivalente di meseCorrente/annoCorrente in Vue
   DateTime _meseScelto = DateTime(DateTime.now().year, DateTime.now().month);
@@ -74,6 +80,8 @@ class DashboardProvider extends ChangeNotifier {
       );
       _categorie = dati.categorie;
       _ricorrenti = dati.ricorrenti;
+      datiOffline = false;
+      await ReferenceCache.salvaCategorie(walletDocumentId, _categorie);
       // Pianifica notifiche per le ricorrenti con l'orario scelto.
       // In sequenza e non in parallelo: scheduleAll disdice gli ID pianificati
       // al giro precedente, e uno di quelli può essere un avviso di soglia
@@ -88,6 +96,21 @@ class DashboardProvider extends ChangeNotifier {
       _aggiornaWidget(walletDocumentId);
     } catch (e) {
       errore = erroreLeggibile(e);
+
+      // Niente dal server e niente ancora in memoria: usa l'ultimo elenco
+      // categorie visto con successo, solo per popolare il modulo nuova
+      // transazione. Niente notifiche di soglia e niente push al widget da
+      // qui sotto: la cache non ha le transazioni del mese, "0 speso"
+      // sarebbe un numero sbagliato spacciato per vero, peggio che non
+      // mostrarlo.
+      if (_categorie.isEmpty) {
+        final cache = await ReferenceCache.caricaCategorie(walletDocumentId);
+        if (cache.isNotEmpty) {
+          _categorie = cache;
+          datiOffline = true;
+          errore = null;
+        }
+      }
     } finally {
       isLoading = false;
       notifyListeners();
@@ -172,6 +195,7 @@ class DashboardProvider extends ChangeNotifier {
   void reset() {
     _categorie = [];
     errore = null;
+    datiOffline = false;
     _meseScelto = DateTime(DateTime.now().year, DateTime.now().month);
     notifyListeners();
   }
