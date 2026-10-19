@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart' hide Transaction;
 import '../models/transaction.dart';
 import '../models/transazione_pendente.dart';
 

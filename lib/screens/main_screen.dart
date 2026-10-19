@@ -69,6 +69,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _avviaSincronizzazioneOffline() async {
     final tx = context.read<TransazioneProvider>();
     await tx.caricaPendenti();
+    if (!mounted) return;
 
     final token = context.read<AuthProvider>().token;
     if (token != null) await tx.sincronizzaPendenti(token);
