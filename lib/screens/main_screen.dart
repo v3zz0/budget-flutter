@@ -78,6 +78,15 @@ class _MainScreenState extends State<MainScreen> {
       if (!online || !mounted) return;
       final t = context.read<AuthProvider>().token;
       if (t != null) await tx.sincronizzaPendenti(t);
+
+      // Se l'app è partita offline, il primo _caricaWallets() in initState
+      // ha fallito e la lista è rimasta vuota per sempre: niente, finora,
+      // la ritentava quando la rete tornava. Senza portafogli non ci sono
+      // categorie da mostrare, e il modulo transazione resta bloccato anche
+      // a connessione ripristinata.
+      if (mounted && context.read<WalletProvider>().wallets.isEmpty) {
+        await _caricaWallets();
+      }
     });
   }
 
