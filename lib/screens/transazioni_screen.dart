@@ -695,18 +695,25 @@ class _TransazioniScreenState extends State<TransazioniScreen> {
                                 : await provider.salva(token, transazione);
 
                             if (context.mounted) {
+                              final inAttesa = successo &&
+                                  daModificare == null &&
+                                  provider.ultimoEsito ==
+                                      EsitoSalvataggio.inAttesa;
+                              final messaggio = !successo
+                                  ? 'Errore nel salvataggio'
+                                  : inAttesa
+                                      ? 'Salvata in locale: verrà inviata quando torna la connessione'
+                                      : (daModificare != null
+                                          ? 'Transazione aggiornata!'
+                                          : 'Transazione salvata!');
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    successo
-                                        ? (daModificare != null
-                                            ? 'Transazione aggiornata!'
-                                            : 'Transazione salvata!')
-                                        : 'Errore nel salvataggio',
-                                  ),
-                                  backgroundColor: successo
-                                      ? AppColors.positivo
-                                      : AppColors.error,
+                                  content: Text(messaggio),
+                                  backgroundColor: !successo
+                                      ? AppColors.error
+                                      : inAttesa
+                                          ? AppColors.avviso
+                                          : AppColors.positivo,
                                 ),
                               );
                             }

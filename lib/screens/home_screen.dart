@@ -128,6 +128,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Transazioni create offline, non ancora arrivate al server.
+            if (context.watch<TransazioneProvider>().pendenti.isNotEmpty) ...[
+              _BannerPendenti(
+                onRiprova: () async {
+                  final token = requireToken(context);
+                  if (token == null) return;
+                  await context.read<TransazioneProvider>().sincronizzaPendenti(token);
+                  if (mounted) await _caricaDati();
+                },
+              ),
+              const SizedBox(height: 16),
+            ] else
+              const SizedBox(height: 16),
+
             // Tre card riepilogative — Budget / Spesi / Rimanenti
             if (!dashboard.isLoading && dashboard.errore == null)
               _CardRiepilogo(dashboard: dashboard, wallet: wallet),
@@ -208,6 +222,47 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Avviso: ci sono transazioni create offline non ancora arrivate al server.
+/// Il bottone forza un nuovo tentativo, utile se l'utente sa di essere
+/// appena tornato online e non vuole aspettare il prossimo avvio dell'app.
+class _BannerPendenti extends StatelessWidget {
+  final VoidCallback onRiprova;
+
+  const _BannerPendenti({required this.onRiprova});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = context.watch<TransazioneProvider>().pendenti.length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.avviso.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.avviso.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off, color: AppColors.avviso, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              n == 1
+                  ? '1 transazione in attesa di connessione'
+                  : '$n transazioni in attesa di connessione',
+              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            ),
+          ),
+          TextButton(
+            onPressed: onRiprova,
+            child: const Text('Riprova'),
+          ),
+        ],
       ),
     );
   }

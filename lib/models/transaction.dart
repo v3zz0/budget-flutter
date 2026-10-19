@@ -8,6 +8,11 @@ class Transaction {
   final bool contanti; // pagata in contanti → esclusa dal confronto in analisi
   final String categoriaDocumentId; // riferimento alla categoria padre
 
+  // Generato sul telefono al momento del salvataggio, non dal server. Serve a
+  // riconoscere un invio ripetuto (stessa transazione rimandata dopo che la
+  // risposta del server si è persa per strada) senza creare un doppione.
+  final String? clientUuid;
+
   Transaction({
     required this.documentId,
     required this.importo,
@@ -17,7 +22,20 @@ class Transaction {
     this.ricorrenzaTemporale,
     this.contanti = false,
     required this.categoriaDocumentId,
+    this.clientUuid,
   });
+
+  Transaction conClientUuid(String uuid) => Transaction(
+        documentId: documentId,
+        importo: importo,
+        descrizione: descrizione,
+        data: data,
+        transazioneRicorrente: transazioneRicorrente,
+        ricorrenzaTemporale: ricorrenzaTemporale,
+        contanti: contanti,
+        categoriaDocumentId: categoriaDocumentId,
+        clientUuid: uuid,
+      );
 
   // fromJson() — costruisce una Transaction dal JSON di Strapi
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -40,6 +58,7 @@ class Transaction {
           : null,
       contanti: json['Contanti'] ?? false,
       categoriaDocumentId: categoriaId,
+      clientUuid: json['ClientUuid'],
     );
   }
 
@@ -51,6 +70,7 @@ class Transaction {
         'Descrizione': descrizione,
         'Data': giorno,
         'TransazioneRicorrente': transazioneRicorrente,
+        if (clientUuid != null) 'ClientUuid': clientUuid,
         // Il giorno di addebito, scritto invece che dedotto. Finora questo
         // campo non partiva mai: cron e app ripiegavano entrambi su `Data`, e
         // nel database restava sempre null — un campo dello schema che non

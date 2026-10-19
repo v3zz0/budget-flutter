@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/transazione_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/user_settings_provider.dart';
 import '../services/api_client.dart';
+import '../services/connectivity_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'transazioni_screen.dart';
@@ -29,6 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   StreamSubscription<Uri?>? _clickWidget;
+  StreamSubscription<bool>? _connettivita;
 
   // Lista delle schermate — in base a _currentIndex mostra quella giusta
   // Equivalente del <RouterView> che cambia componente al cambio di route
@@ -56,6 +59,24 @@ class _MainScreenState extends State<MainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _caricaWallets();
       _ascoltaScorciatoieWidget();
+      _avviaSincronizzazioneOffline();
+    });
+  }
+
+  /// Transazioni rimaste nel "quaderno" da un giro precedente (app chiusa
+  /// prima che tornasse la rete): un primo tentativo all'avvio, poi uno ogni
+  /// volta che il telefono si riconnette mentre l'app resta aperta.
+  Future<void> _avviaSincronizzazioneOffline() async {
+    final tx = context.read<TransazioneProvider>();
+    await tx.caricaPendenti();
+
+    final token = context.read<AuthProvider>().token;
+    if (token != null) await tx.sincronizzaPendenti(token);
+
+    _connettivita = ConnectivityService.onStatusChange.listen((online) async {
+      if (!online || !mounted) return;
+      final t = context.read<AuthProvider>().token;
+      if (t != null) await tx.sincronizzaPendenti(t);
     });
   }
 
@@ -91,6 +112,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _clickWidget?.cancel();
+    _connettivita?.cancel();
     super.dispose();
   }
 
