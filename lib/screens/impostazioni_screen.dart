@@ -2422,6 +2422,23 @@ class _CardNotifiche extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 4),
+          // Causa più comune, su molti telefoni (Samsung compreso), per cui
+          // una notifica pianificata in anticipo non arriva mai: il sistema
+          // mette l'app a dormire per risparmiare batteria. Il consumo reale
+          // non cambia — l'app si sveglia solo per le sveglie pianificate e
+          // per sincronizzare le transazioni offline, mai in continuo.
+          TextButton.icon(
+            icon: const Icon(Icons.battery_alert_outlined, size: 18),
+            label: const Text('Disattiva risparmio energia per le notifiche'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+            onPressed: () => NotificationService.richiediEsclusioneBatteria(),
+          ),
+          const Text(
+            'Su alcuni telefoni (es. Samsung) va tolta anche dalla lista '
+            '"App in sospensione" in Impostazioni → Batteria.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          ),
         ],
       ),
     );

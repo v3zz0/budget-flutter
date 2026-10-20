@@ -1,3 +1,4 @@
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -86,8 +87,12 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      // exact: con inexact + Doze Android rimanda la sveglia anche di ore/giorni.
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // alarmClock: stesso meccanismo della sveglia di sistema. Con
+      // exactAllowWhileIdle, su telefoni con gestione batteria aggressiva
+      // (Samsung compreso) la sveglia può non suonare proprio, non solo in
+      // ritardo — Android protegge le sveglie vere molto più delle notifiche
+      // pianificate dalle app, quindi vale la rinuncia a essere "discreti".
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       // Ripete automaticamente ogni mese, stesso giorno.
       // ponytail: la PRIMA occorrenza ora è clampata bene da Ricorrenza, ma le
@@ -166,6 +171,38 @@ class NotificationService {
   static Future<int> pianificate() async {
     if (_disabilitato) return 0;
     return (await _plugin.pendingNotificationRequests()).length;
+  }
+
+  // Deve combaciare con applicationId in android/app/build.gradle.kts.
+  static const _nomePacchetto = 'com.vezzo.budget_flutter';
+
+  /// Apre il dialogo di sistema per escludere l'app dall'ottimizzazione
+  /// batteria. È la causa più diretta, su molti telefoni (Samsung compreso),
+  /// per cui una sveglia pianificata non suona mai: Android mette l'app a
+  /// dormire e con essa le sveglie che aveva impostato.
+  static Future<void> richiediEsclusioneBatteria() async {
+    if (_disabilitato) return;
+    try {
+      await const AndroidIntent(
+        action: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+        data: 'package:$_nomePacchetto',
+      ).launch();
+    } catch (_) {
+      // Alcuni produttori non supportano questo intent diretto: si ripiega
+      // sulla pagina info dell'app, da cui si arriva comunque a mano alle
+      // impostazioni batteria.
+      await apriImpostazioniApp();
+    }
+  }
+
+  /// Pagina "Info app" di sistema — punto di partenza manuale per le
+  /// impostazioni batteria quando il dialogo diretto non è disponibile.
+  static Future<void> apriImpostazioniApp() async {
+    if (_disabilitato) return;
+    await const AndroidIntent(
+      action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
+      data: 'package:$_nomePacchetto',
+    ).launch();
   }
 
   /// Chiave sotto cui teniamo gli ID pianificati per ciascun portafoglio.

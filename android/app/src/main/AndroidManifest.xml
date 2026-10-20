@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <!-- Ripianifica le notifiche dopo il riavvio del telefono -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Apre il dialogo di sistema "escludi dall'ottimizzazione batteria":
+         senza, Android può mettere l'app a dormire e bloccare anche le
+         sveglie in modalità alarmClock. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <!-- Autenticazione biometrica (impronta) -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
